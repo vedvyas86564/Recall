@@ -319,7 +319,7 @@ Ordered by expected damage.
 
 **R2 — No abstention, and no scores to build it from.** Nothing refuses to answer. Neither retrieval path returns a similarity score, so spec §1.2's configurable threshold cannot be written until scores are plumbed through both paths. *Blocks a Phase 1 acceptance criterion.*
 
-**R3 — Zero permission model.** Non-negotiable per spec §1.3 and entirely absent. Not a gap in an existing system — the concept does not exist. *Largest single piece of Phase 1 work.*
+**R3 — Zero permission model.** ~~Non-negotiable per spec §1.3 and entirely absent.~~ **Downgraded 2026-07-27.** The corpus is a standard Slack export, which contains public channels only, so Phase 1 has no private-channel leak surface. The requirement collapses from "build an ACL layer" to "enforce and document public-only." Per-user ACLs land in Phase 1.5 with OAuth. See `DECISIONS.md` D3 for what is still required now — visibility recorded at ingest, private content refused at ingest, and the filter placed *inside* the retrieval query so Phase 1.5 substitutes a predicate rather than restructuring the pipeline.
 
 **R4 — Citations cannot be deep-linked with the metadata captured today.** Chunks carry only `channel` (a *directory name*) and `thread_ts`. A Slack permalink needs workspace domain + channel ID + message ts. This is an ingestion-schema fix, not a UI fix, and it must land before the citation UI is worth building.
 
@@ -361,9 +361,9 @@ Grouped by whether Recall gives us a foundation to build on.
 - Aligned opclass + operator + `probes`, with `lists` derived from real row count (R6, R7)
 
 **Build from nothing** *(no foundation exists)*
-- **Slack API ingestion** — the current path reads a static directory; Phase 1.1 needs a real workspace connection with OAuth, channel enumeration, and pagination
+- ~~**Slack API ingestion**~~ — **superseded.** Phase 1 uses the export path, extending the existing `slack_export.py` rather than writing an OAuth client (`DECISIONS.md` D2). OAuth moves to Phase 1.5.
 - **GitHub ingestion** — repo, code, and docs; blob URLs with line anchors for citations
-- **Permission model end to end** — identity, per-user channel/repo allowlists populated at connect time, and an in-query pre-filter (R3, trap 5)
+- **Visibility enforcement** — record channel visibility at ingest, refuse non-public chunks, filter in-query (`DECISIONS.md` D3). Reduced from the full ACL layer; per-user model deferred to Phase 1.5.
 - **Abstention threshold + logging table** — configurable, and logged from day one as the seed of Phase 3
 - **Eval harness** — `evals/golden.jsonl`, ≥25 questions, ≥5 unanswerable, ≥3 thread-reply questions; Recall@k, citation precision, abstention accuracy
 - **Clickable citation UI** — depends on R4 landing first
@@ -375,6 +375,8 @@ Grouped by whether Recall gives us a foundation to build on.
 ---
 
 ## 13. Open questions for the spec author
+
+**All five answered 2026-07-27. Recorded in `DECISIONS.md` D1–D6; Phase 1 approved. Kept below for provenance.**
 
 1. **Which Slack workspace and GitHub repo** should seed the corpus? Phase 1.1 needs a real one with admin access to install an app.
 2. **Is a Slack app installation available?** Real ingestion needs OAuth scopes (`channels:history`, `channels:read`, `users:read`). If not, the fallback is a manual workspace export — which keeps the directory-based path and changes Phase 1.1's shape considerably.

@@ -1,0 +1,75 @@
+# Decisions
+
+Non-obvious choices, one entry each, with the alternative rejected and why. Newest last.
+
+---
+
+## D1 — Corpus is Recall's own development history, not AgentX's Slack
+
+**Decision.** Seed the demo corpus from Recall's own build: this repository plus whatever Slack/Discord the team used while building it. BSE's workspace is the fallback if that proves too thin.
+
+**Rejected: AgentX's Slack.** It is the richest corpus available and the most tempting. It is also an employer's confidential data being loaded into a personal venture, which is a contract problem before it is a product problem. Ruled out categorically — not "avoid for now," but out of scope for the life of this project.
+
+**Why the chosen option is better than a compromise.** Dogfooding is a stronger demo narrative than a bigger corpus would be: "we indexed the building of this product — ask it why we chose pgvector" is self-evidencing in a way a generic workspace is not. Confidentiality exposure is zero.
+
+---
+
+## D2 — Slack export path, not OAuth
+
+**Decision.** Ingest from a standard Slack workspace export. No OAuth app install in Phase 1.
+
+**Rejected: OAuth install.** Needs workspace-admin approval and scope review — a dependency on someone else's calendar with ~40 hours on the clock. An export can be pulled unilaterally, right now.
+
+**Consequence, and it is a favourable one.** A standard Slack export contains **public channels only**. Phase 1 therefore has no private-channel leak surface at all. See D3.
+
+**Note on reuse.** The instruction was to reuse the Team Memory Engine's export ingestion rather than rebuild under deadline. No repository by that name exists on this machine or the GitHub account (searched 2026-07-27) — but the point stands regardless: `services/slack_export.py` already parses Slack exports and groups by thread. That is the code being extended. No ingestion is being written from scratch.
+
+---
+
+## D3 — Phase 1 permission model is a documented corpus property, not an ACL layer
+
+**Decision.** Because the corpus is public-channels-only (D2), Phase 1 satisfies its permission requirement by **documenting that fact and enforcing it at ingest** — no per-user ACL. The real per-user model lands in Phase 1.5 alongside OAuth.
+
+**Rejected: building the ACL layer now**, as the original spec §1.3 required. Against a corpus with no private content, a per-user allowlist would be enforcement machinery guarding a boundary that does not exist — cost with no protection, and untestable in any meaningful way (the spec's own test, "a user without access to a private channel cannot retrieve its content," has no private channel to run against).
+
+**What is still required now**, so this does not become a hole:
+- Ingest records each chunk's source visibility (channel ID, public/private flag). The column exists and is populated from day one even though every row currently says `public`.
+- Ingest **refuses** any chunk not marked public, so a private channel cannot enter the corpus by accident if someone later points it at a fuller export.
+- Retrieval filters on that column **inside the query**, not post-hoc (spec trap 5). The predicate is trivially `visibility = 'public'` today, but the filter is in the right place, so Phase 1.5 changes a predicate rather than a pipeline.
+- README states the corpus scope plainly.
+
+This is the cheap half of the work done now, in the right shape, so the expensive half is a substitution later.
+
+---
+
+## D4 — Supabase, and the in-memory path is retired as a runtime fallback
+
+**Decision.** Supabase Postgres + pgvector. The in-memory index is removed as something the running app can reach. An in-memory store remains available to unit tests only.
+
+**Rejected: local Postgres.** Does not produce a public URL, and the public URL is the point of Phase 1.
+
+**Rejected: keeping in-memory as a fallback.** A dual runtime path is how you ship a bug that exists only in production. R10 in `ARCHITECTURE.md` is already exactly that: `org_id` defaults to the string `"demo"`, which is inert in memory and raises on a `$1::uuid` cast the first time a real database is attached. The bug survived precisely because the path that would expose it never ran.
+
+**The distinction that matters.** Silent fallback is the danger, not the code. If `DATABASE_URL` is unset the app now **fails at startup with a clear error** rather than quietly serving from RAM. A misconfigured deploy should refuse to start, not come up looking healthy while answering from an empty index.
+
+---
+
+## D5 — `org_id` stays a real tenant boundary; user-level ACLs deferred
+
+**Decision.** Keep `org_id` as a genuine outer scope, enforced in every query. Build no org-switching UI. User-level ACLs land with OAuth in Phase 1.5.
+
+**Rejected: dropping `org_id` as premature.** It is cheap to keep and expensive to retrofit — it threads through every table, every insert, and every retrieval predicate. Removing it now would mean re-adding it to all of them later.
+
+**Rejected: building user-level ACLs now.** The permission model that actually matters for Canopy keys on the *user* — the entire pitch is that an intern sees less than the CTO. But with a public-channels-only corpus (D3) there is nothing yet for a user-level check to protect.
+
+So: org is the boundary that exists and is enforced; user is the boundary that is designed for and deferred.
+
+---
+
+## D6 — Sources: Slack and GitHub only
+
+**Decision.** Confirmed. No Gmail, no meetings, no S3 — not extended, not stubbed, not left in the UI implying they work.
+
+**Context correcting the original spec.** Spec §0.3 said Gmail/meetings/S3 "already exist in Recall; leave them alone." Phase 0 established they do not exist: they are hardcoded cards in `App.jsx` and invented source titles in mock chat fixtures. There is nothing to leave alone.
+
+**Consequence.** Those UI fixtures are not neutral — they claim connected integrations that do not exist, which collides with spec rule 4 (no mock data in the demo path). They get removed rather than preserved.
