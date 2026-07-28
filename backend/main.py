@@ -11,6 +11,12 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+from services.abstention import (
+    RELEVANCE_THRESHOLD,
+    log_abstention,
+    near_misses,
+    should_abstain,
+)
 from services.answer import attach_citations
 from services.bedrock_embed import embed_one
 from services.nova_extract import extract_decisions
@@ -130,6 +136,26 @@ async def query(req: QueryRequest, request: Request):
     qvec = embed_one(req.question, purpose="TEXT_RETRIEVAL")
     top = await retrieve_top_k(qvec, org_id, k=top_k)
 
+    # Decide on retrieval quality before calling the generator. Asking the model
+    # whether it can answer invites it to say yes and confabulate, which is the
+    # failure this exists to prevent (spec trap 4 / 1.2).
+    abstain, top_score = should_abstain(top)
+    if abstain:
+        misses = near_misses(top)
+        await log_abstention(
+            org_id, req.question, top_score, RELEVANCE_THRESHOLD, len(top), misses
+        )
+        return {
+            "abstained": True,
+            "reason": "No indexed content was close enough to answer this confidently.",
+            "decisions": [],
+            "sources": [],
+            "near_misses": misses,
+            "top_score": top_score,
+            "threshold": RELEVANCE_THRESHOLD,
+            "retrieved_count": len(top),
+        }
+
     extracted = extract_decisions(req.question, top)
 
     # Citations come from what the model actually cited, not from everything
@@ -137,8 +163,10 @@ async def query(req: QueryRequest, request: Request):
     decisions, sources = attach_citations(extracted.get("decisions", []), top)
 
     return {
+        "abstained": False,
         "decisions": decisions,
         "sources": sources,
+        "top_score": top_score,
         # Diagnostic: how much of what we retrieved was actually used. A large
         # gap is a signal that retrieval is returning noise.
         "retrieved_count": len(top),
