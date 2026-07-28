@@ -7,3 +7,4 @@ node_modules/
 documentation.md
 backend/.env
 backend/.env.localbackend/services/__pycache__
+backend/tests/__pycache__
