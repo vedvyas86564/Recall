@@ -1,10 +1,10 @@
 backend/venv
 backend/__pycache__
-backend/.env
+backend/services/__pycache__
+backend/tests/__pycache__
 backend/local_index.json
+backend/.env
+backend/.env.local
 node_modules/
 .env
 documentation.md
-backend/.env
-backend/.env.localbackend/services/__pycache__
-backend/tests/__pycache__
