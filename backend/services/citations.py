@@ -42,6 +42,41 @@ def slack_permalink(channel_id: str, ts: str, thread_ts: str | None = None) -> s
     return link
 
 
+def source_ref(chunk: dict) -> str | None:
+    """
+    Stable, human-writable identifier for the source a chunk came from.
+
+    This is the vocabulary the golden eval set is written in, so it has to be
+    something a person can read off a Slack URL and type by hand:
+
+        slack:<channel_id>:<thread_ts>
+        github:<owner/repo>:<path>
+
+    Deliberately identifies the *source*, not the chunk. Chunk IDs are UUIDs
+    minted at ingest and change every time chunking changes -- a golden set
+    keyed on them would need rewriting after every chunking tweak, which is
+    exactly when you most need it to stay fixed.
+    """
+    meta = chunk.get("metadata", {}) or {}
+    source = meta.get("source") or chunk.get("source") or ""
+
+    if source in ("slack", "slack_export"):
+        channel = meta.get("channel_id") or meta.get("channel") or ""
+        thread = meta.get("thread_ts") or ""
+        if not channel or not thread:
+            return None
+        return f"slack:{channel}:{thread}"
+
+    if source == "github":
+        repo = meta.get("repo") or ""
+        path = meta.get("path") or ""
+        if not repo or not path:
+            return None
+        return f"github:{repo}:{path}"
+
+    return None
+
+
 def github_blob_url(
     repo: str,
     ref: str,
