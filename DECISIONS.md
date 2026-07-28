@@ -73,3 +73,15 @@ So: org is the boundary that exists and is enforced; user is the boundary that i
 **Context correcting the original spec.** Spec §0.3 said Gmail/meetings/S3 "already exist in Recall; leave them alone." Phase 0 established they do not exist: they are hardcoded cards in `App.jsx` and invented source titles in mock chat fixtures. There is nothing to leave alone.
 
 **Consequence.** Those UI fixtures are not neutral — they claim connected integrations that do not exist, which collides with spec rule 4 (no mock data in the demo path). They get removed rather than preserved.
+
+---
+
+## D7 — Phase 1 is Slack-only; GitHub deferred
+
+**Decision.** (2026-07-28) Slack is the sole source for Phase 1. GitHub ingestion is deferred, not cancelled.
+
+**Consequence for the acceptance bar.** Spec §1 lists seven Phase 1 criteria. Two are GitHub-specific — "answerable only from GitHub returns a working blob link" and "requiring both sources cites both" — and are **struck**. Phase 1 ships against five criteria. This is a scope cut, recorded so it is not later mistaken for a missed bar.
+
+**Why deferring costs almost nothing.** The groundwork is already in place and tested: `citations.py` has `github_blob_url` with line anchors and its own tests, and every chunk carries a `source` field in metadata. Reviving GitHub is an ingestion module plus a chunker, against interfaces that already exist.
+
+**The real cost, stated plainly.** A single-source corpus cannot demonstrate cross-source synthesis, which is a large part of what makes the "ask it why we chose pgvector" narrative land — the answer to that question genuinely lives in *both* the Slack discussion and the schema commit. Slack-only Phase 1 tells half that story. Worth revisiting before the demo if there is time.
