@@ -47,31 +47,62 @@ def embed_one(
     # Response schema: {"embeddings":[{"embeddingType":"TEXT","embedding":[...]}]}
     return payload["embeddings"][0]["embedding"]
 
-import time
+import concurrent.futures
+import os
 
-def embed_many_texts(texts: list[str], *, purpose: str = "GENERIC_INDEX", dim: int = 1024):
-    vectors = []
-    for i, t in enumerate(texts):
-        if i % 10 == 0:
-            print(f"embedding {i+1}/{len(texts)}")
-        vectors.append(embed_one(t, purpose=purpose, dim=dim))
-        time.sleep(0.05)  # tiny sleep helps avoid throttling in demos
+# Bedrock has no batch endpoint for this model, so throughput comes from
+# concurrency. Serial embedding meant one HTTP round trip per chunk: indexing a
+# few thousand messages took roughly an hour, paid again on every re-index
+# (ARCHITECTURE.md R9).
+#
+# Kept modest by default because the ceiling is an account-level Bedrock quota,
+# not local CPU, and being throttled is slower than being patient. Raise it if
+# your account has the headroom.
+EMBED_CONCURRENCY = int(os.environ.get("EMBED_CONCURRENCY", "8"))
+
+
+def embed_many_texts(
+    texts: list[str],
+    *,
+    purpose: str = "GENERIC_INDEX",
+    dim: int = 1024,
+    max_workers: int = None,
+    progress=None,
+) -> list[list[float]]:
+    """
+    Embed many texts concurrently, preserving input order.
+
+    boto3 clients are not thread-safe for sharing across threads in all cases,
+    but invoke_model on a module-level client is safe here: botocore serializes
+    request signing per call and holds no per-request state on the client.
+
+    Order matters -- callers zip the result against their chunk list, so a
+    reordered return would silently attach every embedding to the wrong chunk.
+    Results are placed by index rather than appended.
+    """
+    if not texts:
+        return []
+
+    workers = max_workers or EMBED_CONCURRENCY
+    vectors: list[list[float] | None] = [None] * len(texts)
+    done = 0
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = {
+            pool.submit(embed_one, t, purpose=purpose, dim=dim): i
+            for i, t in enumerate(texts)
+        }
+        for fut in concurrent.futures.as_completed(futures):
+            i = futures[fut]
+            # Let exceptions propagate. A silently dropped embedding produces a
+            # chunk that exists but can never be retrieved, which is worse than
+            # a failed ingest you can retry.
+            vectors[i] = fut.result()
+            done += 1
+            if progress and done % 25 == 0:
+                progress(done, len(texts))
+
+    if progress:
+        progress(len(texts), len(texts))
+
     return vectors
-
-def embed_chunks(chunks):
-    """
-    Takes a list of chunk dictionaries and returns embeddings for each.
-    """
-    results = []
-
-    for chunk in chunks:
-        vec = embed_one(chunk["text"])
-
-        results.append({
-            "chunk_id": chunk["chunk_id"],
-            "document_id": chunk["document_id"],
-            "embedding": vec,
-            "text": chunk["text"]
-        })
-
-    return results
