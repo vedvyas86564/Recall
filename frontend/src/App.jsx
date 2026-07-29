@@ -1,8 +1,6 @@
 import './App.css'
 import recallIcon from './assets/RecallIcon.svg'
-import slackCardIcon from './assets/SlackCard.svg'
-import meetingCardIcon from './assets/MeetingCard.svg'
-import gmailCardIcon from './assets/GmailCard.svg'
+import githubCardIcon from './assets/GitHubCard.svg'
 import toAskArrowIcon from './assets/ToAskArrow.svg'
 import threadsIcon from './assets/threads.svg'
 import knowledgeBaseIcon from './assets/knowledge_base.svg'
@@ -17,7 +15,13 @@ import linkIcon from './assets/link.svg'
 import lockIcon from './assets/lock.svg'
 import cancelIcon from './assets/cancel.svg'
 import { useEffect, useRef, useState } from 'react'
+import SpotlightCard from './components/SpotlightCard'
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ?? "http://localhost:8000";
+// Config, not literals scattered through call sites. Both must match the
+// backend: API_KEY against its API_KEY env var, ORG_ID against the tenant the
+// corpus was ingested under.
+const API_KEY = import.meta.env.VITE_API_KEY ?? "recall-demo-key";
+const ORG_ID = import.meta.env.VITE_ORG_ID ?? "00000000-0000-0000-0000-000000000001";
 
 function Icon({ children }) {
   return <span className="icon">{children}</span>
@@ -27,189 +31,21 @@ function App() {
   const [activeButton, setActiveButton] = useState('menu-threads')
   const [activeChip, setActiveChip] = useState('chip-all')
   const [page, setPage] = useState('home')
-  const [query, setQuery] = useState('Why did we choose Postgres over DynamoDB?')
+  const [query, setQuery] = useState('')
   const [resultTab, setResultTab] = useState('answer')
   const [isManageOpen, setIsManageOpen] = useState(false)
   const [autoConnect, setAutoConnect] = useState(true)
   const [longMemory, setLongMemory] = useState(false)
 
-  const [chats, setChats] = useState([
-    {
-      id: 'chat-postgres',
-      title: 'Why did we choose Postgres over DynamoDB?',
-      tags: ['#engineering', 'Architecture Review'],
-      resultCount: 11,
-      summary:
-        'Based on architecture discussions in November 2023, the team chose PostgreSQL for primary transactional workloads due to relational access patterns and operational fit.',
-      sections: [
-        {
-          heading: '1. Complex Relational Queries',
-          body: 'Billing, organization, and user data required multi-table joins. Modeling those relationships in DynamoDB would increase complexity and duplicate data management.',
-        },
-        {
-          heading: '2. ACID Compliance for Billing',
-          body: 'Strict transactional integrity was required for billing flows. Postgres provided native transactional guarantees with simpler application logic.',
-        },
-        {
-          heading: '3. Team Expertise',
-          body: 'The team already had deep production experience with RDS Postgres, reducing migration risk and shortening implementation time.',
-        },
-      ],
-      sources: [
-        {
-          id: 'src-slack-1',
-          title: 'Slack · #engineering · Nov 12, 2023',
-          excerpt:
-            'Joins across billing and org data are cleaner in Postgres. DynamoDB indexes would be harder to maintain for current access patterns.',
-        },
-        {
-          id: 'src-meeting-1',
-          title: 'Architecture Review · Meeting Transcript',
-          excerpt:
-            'Decision captured: Postgres as system of record for transaction-heavy paths, with DynamoDB reserved for selected key-value scenarios.',
-        },
-        {
-          id: 'src-gmail-1',
-          title: 'Gmail · Database migration plan',
-          excerpt:
-            'SQL flexibility and transactional guarantees were ranked highest for phase one launch; operational familiarity also lowered risk.',
-        },
-      ],
-    },
-    {
-      id: 'chat-latency',
-      title: 'What caused the recent API latency spike?',
-      tags: ['#incident', 'Perf Review'],
-      resultCount: 9,
-      summary:
-        'The spike came from cache churn during a deployment window, amplified by connection pool saturation on the read replica.',
-      sections: [
-        {
-          heading: '1. Cache Invalidation Burst',
-          body: 'A broad invalidation pattern increased cache misses, causing a sudden jump in origin reads for hot endpoints.',
-        },
-        {
-          heading: '2. Replica Pool Saturation',
-          body: 'Read-heavy traffic exhausted available DB connections on the replica, increasing queue times and tail latency.',
-        },
-        {
-          heading: '3. Mitigation',
-          body: 'We narrowed invalidation scope, raised replica pool limits, and added request coalescing on hot cache keys.',
-        },
-      ],
-      sources: [
-        {
-          id: 'src-inc-1',
-          title: 'Incident Channel · #api-prod',
-          excerpt: 'p95 climbed from 240ms to 1.4s after deploy; cache hit rate dropped from 93% to 61% for /v1/feed.',
-        },
-        {
-          id: 'src-metric-1',
-          title: 'Dashboard Notes · Latency Review',
-          excerpt: 'Replica connections were pegged at limit for 18 minutes; queue wait contributed most to p99.',
-        },
-        {
-          id: 'src-retro-1',
-          title: 'Postmortem Draft',
-          excerpt: 'Primary trigger was invalidation fan-out, secondary trigger was insufficient read capacity headroom.',
-        },
-        {
-          id: 'src-retro-2',
-          title: 'Pager Timeline',
-          excerpt: 'Temporary mitigation restored latency by rebalancing cache and reducing burst fan-out.',
-        },
-      ],
-    },
-    {
-      id: 'chat-q3',
-      title: 'Summarize Q3 planning tradeoffs',
-      tags: ['#planning', 'Q3'],
-      resultCount: 7,
-      summary:
-        'Q3 planning prioritized reliability and migration debt over net-new feature surface, with a smaller allocation to growth experiments.',
-      sections: [
-        {
-          heading: '1. Reliability vs Feature Velocity',
-          body: 'More engineering weeks were shifted to reliability initiatives, reducing capacity for broad feature expansion.',
-        },
-        {
-          heading: '2. Migration Debt Paydown',
-          body: 'Platform migration tasks were pulled forward to de-risk Q4 dependencies and unblock multi-region readiness.',
-        },
-        {
-          heading: '3. Controlled Experiments',
-          body: 'Growth work was scoped as narrow experiments with strict success criteria instead of full launches.',
-        },
-      ],
-      sources: [
-        {
-          id: 'src-plan-1',
-          title: 'Q3 Roadmap Doc',
-          excerpt: 'Reliability received 42% of capacity; net-new features reduced to 28% to protect launch stability.',
-        },
-        {
-          id: 'src-plan-2',
-          title: 'Leadership Notes · Planning',
-          excerpt: 'Migration debt was considered a prerequisite for Q4 enterprise commitments.',
-        },
-        {
-          id: 'src-plan-3',
-          title: 'FigJam · Allocation Workshop',
-          excerpt: 'Experiment budget remains, but each experiment has hard stop criteria and owner accountability.',
-        },
-      ],
-    },
-    {
-      id: 'chat-rate-limit',
-      title: 'How should we structure rate-limit tiers?',
-      tags: ['#api', 'Policy'],
-      resultCount: 8,
-      summary:
-        'A tiered model based on request class and burst profile provides fair usage while protecting shared infrastructure.',
-      sections: [
-        {
-          heading: '1. Tier by Workload Type',
-          body: 'Separate interactive reads, bulk exports, and write-heavy operations so limits reflect actual system cost.',
-        },
-        {
-          heading: '2. Burst + Sustained Controls',
-          body: 'Use token bucket for bursts and rolling-window caps for sustained behavior to reduce abuse and noisy neighbors.',
-        },
-        {
-          heading: '3. Upgrade Path',
-          body: 'Expose clear upgrade tiers and headers so customers understand limits and can predict throttling behavior.',
-        },
-      ],
-      sources: [
-        {
-          id: 'src-rl-1',
-          title: 'API Governance RFC',
-          excerpt: 'Proposed three tiers with separate read/write budgets and endpoint-specific multipliers.',
-        },
-        {
-          id: 'src-rl-2',
-          title: 'Support Escalations · Top Accounts',
-          excerpt: 'Most throttling incidents came from bulk jobs scheduled at top-of-hour.',
-        },
-        {
-          id: 'src-rl-3',
-          title: 'Benchmark Notes',
-          excerpt: 'Burst limits handled normal UX traffic while sustained caps protected backend saturation points.',
-        },
-        {
-          id: 'src-rl-4',
-          title: 'Customer Advisory Thread',
-          excerpt: 'Clear response headers reduced confusion and improved upgrade conversions.',
-        },
-      ],
-    },
-  ])
-  const [recentItems, setRecentItems] = useState([
-    { id: 'chat-latency' },
-    { id: 'chat-q3' },
-    { id: 'chat-rate-limit' },
-  ])
-  const [activeChatId, setActiveChatId] = useState('chat-postgres')
+  // No seeded chats. Every result in the demo path must come from a real
+  // retrieval against the indexed corpus (spec rule 4); fixtures here were
+  // indistinguishable from real answers in the UI.
+  const [chats, setChats] = useState([])
+  const [recentItems, setRecentItems] = useState([])
+  const [activeChatId, setActiveChatId] = useState(null)
+  // Threads actually present in the index, used to show real examples on the
+  // landing page instead of invented ones.
+  const [corpusDocs, setCorpusDocs] = useState([])
 
   const primaryNav = [
     { id: 'menu-threads', label: 'Threads', icon: threadsIcon },
@@ -218,24 +54,23 @@ function App() {
     { id: 'menu-settings', label: 'Source Management', icon: settingsIcon },
   ]
 
+  // Filter chips describe what is actually indexed. Slack, Gmail, and Meetings
+  // were listed here with nothing behind them (spec rule 4).
   const chips = [
     { id: 'chip-all', label: 'All' },
-    { id: 'chip-slack', label: 'Slack' },
-    { id: 'chip-gmail', label: 'Gmail' },
-    { id: 'chip-meetings', label: 'Meetings' },
+    { id: 'chip-github', label: 'GitHub' },
   ]
 
-  const sourceCards = [
-    { id: 'card-slack', type: 'Slack', title: 'Rate limiting discussion', icon: slackCardIcon },
-    {
-      id: 'card-meeting',
-      type: 'Meeting',
-      title: 'Architecture Review',
-      withPreview: true,
-      icon: meetingCardIcon,
-    },
-    { id: 'card-gmail', type: 'Gmail', title: 'Database migration plan', icon: gmailCardIcon },
-  ]
+  // Real threads from the indexed corpus, fetched on mount, replacing three
+  // invented cards ("Rate limiting discussion", "Architecture Review",
+  // "Database migration plan") that referenced nothing.
+  const sourceCards = corpusDocs.slice(0, 3).map((doc) => ({
+    id: doc.id,
+    type: doc.metadata?.repo ?? 'GitHub',
+    title: doc.title,
+    url: doc.metadata?.url ?? null,
+    icon: githubCardIcon,
+  }))
 
   const sourceCatalog = {
     slack: {
@@ -285,64 +120,25 @@ function App() {
     },
   }
 
+  // Only sources that are genuinely indexed. Slack, Gmail, and meetings were
+  // previously shown as 'connected' with no ingestion behind any of them
+  // (spec rule 4). GitHub is the Phase 1 corpus -- see DECISIONS.md D8.
   const [services, setServices] = useState([
-    { id: 'svc-slack', type: 'slack', status: 'connected' },
-    { id: 'svc-gmail', type: 'gmail', status: 'connected' },
-    { id: 'svc-meeting', type: 'meeting', status: 'connected' },
+    { id: 'svc-github', type: 'github', status: 'connected' },
   ])
   const loadTimers = useRef({})
-
-  const chatContextById = {
-    'chat-postgres': {
-      relatedEntities: [
-        { name: 'Database Architecture', type: 'Concept' },
-        { name: 'Backend Team', type: 'Team' },
-      ],
-      topFileMatches: ['db_migration_plan.md', 'schema.sql'],
-    },
-    'chat-latency': {
-      relatedEntities: [
-        { name: 'API Platform', type: 'System' },
-        { name: 'SRE On-call', type: 'Team' },
-      ],
-      topFileMatches: ['incident_2026_02_14.md', 'latency_dashboard_notes.md'],
-    },
-    'chat-q3': {
-      relatedEntities: [
-        { name: 'Q3 Roadmap', type: 'Plan' },
-        { name: 'Exec Staff', type: 'Stakeholder Group' },
-      ],
-      topFileMatches: ['q3_allocation_plan.md', 'planning_workshop_notes.md'],
-    },
-    'chat-rate-limit': {
-      relatedEntities: [
-        { name: 'API Governance', type: 'Policy' },
-        { name: 'Customer Success', type: 'Team' },
-      ],
-      topFileMatches: ['rate_limit_rfc.md', 'tier_headers_spec.md'],
-    },
-  }
 
   const activeChat =
     chats.find((chat) => chat.id === activeChatId) ??
     chats[0] ?? {
       id: 'empty',
-      title: 'No chats yet',
+      title: 'No searches yet',
       tags: [],
       resultCount: 0,
-      summary: 'Create a search to generate a result thread.',
+      summary: 'Ask a question to search the indexed corpus.',
       sections: [],
       sources: [],
-      relatedEntities: [],
-      topFileMatches: [],
     }
-  const activeChatContext = chatContextById[activeChat.id] ?? {
-    relatedEntities: activeChat.relatedEntities ?? [
-      { name: 'Search Session', type: 'Session' },
-      { name: 'Engineering Notes', type: 'Collection' },
-    ],
-    topFileMatches: activeChat.topFileMatches ?? ['search_context.md', 'decision_log.md'],
-  }
 
   const handlePrimaryNav = (itemId) => {
     setActiveButton(itemId)
@@ -350,57 +146,6 @@ function App() {
     if (itemId === 'menu-kb') setPage('placeholder')
     if (itemId === 'menu-settings') setPage('service')
     if (itemId === 'menu-projects') setPage('projects')
-  }
-
-  const buildChatFromQuery = (input) => {
-    const sourceCount = 2 + (input.length % 4)
-    const resultCount = 6 + (input.length % 12)
-    const sources = Array.from({ length: sourceCount }).map((_, index) => ({
-      id: `src-${Date.now()}-${index}`,
-      title:
-        index % 3 === 0
-          ? 'Slack · Team discussion'
-          : index % 3 === 1
-            ? 'Meeting transcript · Architecture review'
-            : 'Project doc · Planning notes',
-      excerpt:
-        index % 3 === 0
-          ? 'Engineers compared options and highlighted implementation risk, effort, and migration concerns.'
-          : index % 3 === 1
-            ? 'Review notes emphasized reliability and operational simplicity as primary decision constraints.'
-            : 'Planning tradeoffs were documented with scoped alternatives and expected downstream impact.',
-    }))
-
-    return {
-      id: `chat-${Date.now()}`,
-      title: input,
-      tags: ['#new', 'Quick Search'],
-      resultCount,
-      summary: `Summary for "${input}": current discussion points emphasize architectural fit, execution risk, and maintainability tradeoffs based on recent team context.`,
-      sections: [
-        {
-          heading: '1. Context Snapshot',
-          body: 'Recent notes show this topic appears across planning, implementation, and reliability conversations.',
-        },
-        {
-          heading: '2. Decision Factors',
-          body: 'The strongest drivers are delivery risk, operating cost, and future maintainability.',
-        },
-        {
-          heading: '3. Next Step',
-          body: 'Confirm assumptions with owners and capture the final decision path in a shared design note.',
-        },
-      ],
-      relatedEntities: [
-        { name: 'Search Session', type: 'Session' },
-        { name: `Topic: ${input.slice(0, 24)}`, type: 'Topic' },
-      ],
-      topFileMatches: [
-        `${input.toLowerCase().replace(/[^a-z0-9]+/g, '_').slice(0, 18) || 'query'}_notes.md`,
-        'decision_log.md',
-      ],
-      sources,
-    }
   }
 
   const handleSearchSubmit = async (event) => {
@@ -415,10 +160,12 @@ function App() {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-api-key": "recall-demo-key",
-        "x-org-id": "00000000-0000-0000-0000-000000000001",
+        "x-api-key": API_KEY,
+        "x-org-id": ORG_ID,
       },
-      body: JSON.stringify({ question: normalizedQuery, org_id: "demo", top_k: 10 }),
+      // org_id deliberately absent from the body: the backend takes the tenant
+      // from the header only, so a client cannot select its own tenant.
+      body: JSON.stringify({ question: normalizedQuery, top_k: 10 }),
     })
     if (!res.ok) {
       const text = await res.text()
@@ -449,25 +196,66 @@ function App() {
   // 2) Convert backend response -> UI chat format
   const decisions = data.decisions ?? []
 
-  const nextChat = {
-    id: `chat-${Date.now()}`,
-    title: normalizedQuery,
-    tags: ["#rag", "#decisions"],
-    resultCount: decisions.length,
-    summary:
-      decisions.length === 0
-        ? "No decisions found in the retrieved context."
-        : `Found ${decisions.length} decision(s) from retrieved context.`,
-    sections: decisions.map((d, i) => ({
-      heading: `${i + 1}. ${d.title || "Decision"}`,
-      body: `${d.decision || ""}${d.owner ? `\n\nOwner: ${d.owner}` : ""}`,
-    })),
-    sources: (data.sources ?? []).map((s, i) => ({
-      id: s.id ?? `src-${Date.now()}-${i}`,
-      title: s.title ?? "Source",
-      excerpt: s.excerpt ?? "",
-    })),
+  const toSource = (s, i) => ({
+    id: s.id ?? `src-${Date.now()}-${i}`,
+    title: s.title ?? "Source",
+    excerpt: s.excerpt ?? "",
+    // Null when the chunk has no resolvable deep link. Rendered as plain text
+    // rather than a dead anchor (spec rule 5).
+    url: s.url ?? null,
+    score: s.score,
+  })
+
+  const retrieval = {
+    topScore: data.top_score,
+    threshold: data.threshold,
+    retrievedCount: data.retrieved_count,
   }
+
+  // The backend decided it could not answer. Show that plainly, with the
+  // closest material it did find, rather than dressing up a low-confidence
+  // guess as an answer (spec 1.2).
+  const nextChat = data.abstained
+    ? {
+        id: `chat-${Date.now()}`,
+        title: normalizedQuery,
+        tags: ["#no-answer"],
+        resultCount: 0,
+        summary:
+          data.reason ??
+          "No indexed content was close enough to answer this confidently.",
+        sections: (data.near_misses ?? []).length
+          ? [
+              {
+                heading: "Closest material found",
+                body: "None of these cleared the relevance threshold, so they are shown as leads rather than as an answer.",
+              },
+            ]
+          : [],
+        sources: (data.near_misses ?? []).map(toSource),
+        retrieval,
+        abstained: true,
+      }
+    : {
+        id: `chat-${Date.now()}`,
+        title: normalizedQuery,
+        tags: ["#rag", "#decisions"],
+        resultCount: decisions.length,
+        summary:
+          decisions.length === 0
+            ? "No decisions found in the retrieved context."
+            : `Found ${decisions.length} decision(s) from retrieved context.`,
+        sections: decisions.map((d, i) => ({
+          heading: `${i + 1}. ${d.title || "Decision"}`,
+          body: `${d.decision || ""}${d.owner ? `\n\nOwner: ${d.owner}` : ""}`,
+          // Per-decision citations, so evidence attaches to the claim it
+          // supports instead of one undifferentiated pile.
+          citations: (d.citations ?? []).map(toSource),
+        })),
+        sources: (data.sources ?? []).map(toSource),
+        retrieval,
+        abstained: false,
+      }
 
   // 3) Update UI state like before
   setChats((prev) => [nextChat, ...prev])
@@ -522,6 +310,26 @@ function App() {
     },
     [],
   )
+
+  // Load a few real threads from the index for the landing page. Failure is
+  // non-fatal: the cards simply do not render, which is honest. Showing
+  // placeholders here is what the fixtures did, and is what rule 4 forbids.
+  useEffect(() => {
+    let cancelled = false
+
+    fetch(`${BACKEND_URL}/documents`, {
+      headers: { 'x-api-key': API_KEY, 'x-org-id': ORG_ID },
+    })
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error(res.status))))
+      .then((data) => {
+        if (!cancelled) setCorpusDocs(data.documents ?? [])
+      })
+      .catch((err) => console.error('Could not load indexed documents:', err))
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     if (!isManageOpen) return
@@ -656,21 +464,24 @@ function App() {
 
                 <section className="source-grid">
                   {sourceCards.map((card) => (
-                    <button
+                    <SpotlightCard
                       key={card.id}
                       className={`source-card ${activeButton === card.id ? 'active' : ''}`}
-                      onClick={() => setActiveButton(card.id)}
-                      type="button"
+                      onClick={() => {
+                        setActiveButton(card.id)
+                        if (card.url) window.open(card.url, '_blank', 'noopener,noreferrer')
+                      }}
+                      role="button"
+                      tabIndex={0}
                     >
                       <span className="source-label">
                         <img className="source-label-icon" src={card.icon} alt="" />
                         {card.type}
                       </span>
                       <div className="source-content">
-                        {card.withPreview && <div className="preview-block" />}
                         <p>{card.title}</p>
                       </div>
-                    </button>
+                    </SpotlightCard>
                   ))}
                 </section>
               </div>
@@ -735,9 +546,25 @@ function App() {
                         ))}
                       </div>
 
+                      {/*
+                        An abstention's sources are near misses, not citations.
+                        Labelling them "cited" would contradict the refusal
+                        immediately above it.
+                      */}
                       <p className="result-meta">
-                        Searched across {activeChat.sources.length} sources · Found {activeChat.resultCount}{' '}
-                        results
+                        {activeChat.abstained ? (
+                          <>
+                            Not answered · {activeChat.sources.length} closest match
+                            {activeChat.sources.length === 1 ? '' : 'es'} below threshold
+                          </>
+                        ) : (
+                          <>
+                            {activeChat.sources.length} cited source
+                            {activeChat.sources.length === 1 ? '' : 's'} ·{' '}
+                            {activeChat.resultCount} decision
+                            {activeChat.resultCount === 1 ? '' : 's'}
+                          </>
+                        )}
                       </p>
 
                       <p>{activeChat.summary}</p>
@@ -746,6 +573,22 @@ function App() {
                         <div key={`${activeChat.id}-${section.heading}`}>
                           <h3>{section.heading}</h3>
                           <p>{section.body}</p>
+                          {(section.citations ?? []).length > 0 && (
+                            <p className="decision-citations">
+                              {section.citations.map((c, i) => (
+                                <span key={`cite-${c.id}`}>
+                                  {i > 0 && ' · '}
+                                  {c.url ? (
+                                    <a href={c.url} target="_blank" rel="noreferrer noopener">
+                                      {c.title}
+                                    </a>
+                                  ) : (
+                                    <span>{c.title}</span>
+                                  )}
+                                </span>
+                              ))}
+                            </p>
+                          )}
                         </div>
                       ))}
                     </>
@@ -758,7 +601,24 @@ function App() {
                       <div className="sources-list">
                         {activeChat.sources.map((source) => (
                           <article className="source-item" key={source.id}>
-                            <p className="source-item-title">{source.title}</p>
+                            {/*
+                              A citation with no resolvable link renders as plain
+                              text rather than a dead anchor. Spec rule 5: an
+                              answer with no citation is acceptable, a wrong one
+                              is not -- and a link that 404s is a wrong one.
+                            */}
+                            {source.url ? (
+                              <a
+                                className="source-item-title source-item-link"
+                                href={source.url}
+                                target="_blank"
+                                rel="noreferrer noopener"
+                              >
+                                {source.title} ↗
+                              </a>
+                            ) : (
+                              <p className="source-item-title">{source.title}</p>
+                            )}
                             <p>{source.excerpt}</p>
                           </article>
                         ))}
@@ -768,28 +628,62 @@ function App() {
                 </article>
               </section>
 
+              {/*
+                Shows real retrieval diagnostics. This panel previously rendered
+                invented "Related Entities" and "Top File Matches" beside every
+                answer, including real ones -- decorating genuine results with
+                fabricated provenance (spec rule 4).
+              */}
               <aside className="result-context">
                 <section>
-                  <p className="context-title">CONTEXT</p>
+                  <p className="context-title">RETRIEVAL</p>
+                  {activeChat.retrieval ? (
+                    <>
+                      <div className="context-item">
+                        <span>Top match</span>
+                        <small>{activeChat.retrieval.topScore?.toFixed(3) ?? 'n/a'}</small>
+                      </div>
+                      <div className="context-item">
+                        <span>Threshold</span>
+                        <small>{activeChat.retrieval.threshold?.toFixed(2) ?? 'n/a'}</small>
+                      </div>
+                      <div className="context-item">
+                        <span>Chunks retrieved</span>
+                        <small>{activeChat.retrieval.retrievedCount ?? 0}</small>
+                      </div>
+                      <div className="context-item">
+                        <span>Chunks cited</span>
+                        <small>{activeChat.sources.length}</small>
+                      </div>
+                    </>
+                  ) : (
+                    <p className="context-empty">Run a search to see retrieval detail.</p>
+                  )}
                 </section>
 
                 <section>
-                  <p className="context-title">RELATED ENTITIES</p>
-                  {activeChatContext.relatedEntities.map((entity) => (
-                    <button className="context-item" key={`${activeChat.id}-${entity.name}`} type="button">
-                      <span>{entity.name}</span>
-                      <small>{entity.type}</small>
-                    </button>
-                  ))}
-                </section>
-
-                <section>
-                  <p className="context-title">TOP FILE MATCHES</p>
-                  {activeChatContext.topFileMatches.map((file) => (
-                    <button className="context-link" key={`${activeChat.id}-${file}`} type="button">
-                      {file}
-                    </button>
-                  ))}
+                  <p className="context-title">CITED THREADS</p>
+                  {activeChat.sources.length === 0 ? (
+                    <p className="context-empty">Nothing cited.</p>
+                  ) : (
+                    activeChat.sources.map((source) =>
+                      source.url ? (
+                        <a
+                          className="context-link"
+                          key={`ctx-${source.id}`}
+                          href={source.url}
+                          target="_blank"
+                          rel="noreferrer noopener"
+                        >
+                          {source.title}
+                        </a>
+                      ) : (
+                        <span className="context-link context-link-dead" key={`ctx-${source.id}`}>
+                          {source.title}
+                        </span>
+                      ),
+                    )
+                  )}
                 </section>
               </aside>
             </div>

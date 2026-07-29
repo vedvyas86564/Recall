@@ -1,4 +1,17 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+
+/*
+  Cosmic theme ported from the Recall-ben branch.
+
+  Only the presentation layer came across. That branch's pages are driven
+  entirely by a 769-line fixture file and its API client is dead code pointing
+  at endpoints that do not exist, so none of its data layer was taken -- see
+  DECISIONS.md D10.
+
+  The layered gradient replaces a flat #03060d. Surfaces above it are
+  translucent, so the background reads through the whole shell rather than
+  being hidden behind opaque panels.
+*/
 
 html,
 body,
@@ -10,5 +23,43 @@ body,
 body {
   margin: 0;
   font-family: 'Inter', sans-serif;
-  background: #03060d;
+  color: rgba(255, 255, 255, 0.95);
+  background-color: #0a0518;
+  background-image:
+    /* top sky glow */
+    radial-gradient(ellipse 140% 55% at 50% -5%, rgba(168, 85, 247, 0.3), transparent 55%),
+    /* pink cloud, right */
+    radial-gradient(ellipse 50% 35% at 85% 12%, rgba(236, 72, 153, 0.18), transparent 50%),
+    /* pink cloud, left */
+    radial-gradient(ellipse 45% 28% at 12% 8%, rgba(219, 39, 119, 0.12), transparent 50%),
+    /* central violet atmosphere */
+    radial-gradient(ellipse 90% 70% at 50% 45%, rgba(109, 40, 217, 0.12), transparent 60%),
+    /* blue accent, bottom-left */
+    radial-gradient(ellipse 40% 30% at 15% 85%, rgba(59, 130, 246, 0.1), transparent 50%),
+    /* purple accent, bottom-right */
+    radial-gradient(ellipse 35% 25% at 85% 90%, rgba(139, 92, 246, 0.08), transparent 50%),
+    /* horizon band */
+    linear-gradient(to top, rgba(8, 4, 20, 1) 0%, rgba(10, 5, 24, 0.95) 6%, rgba(15, 8, 30, 0.6) 18%, transparent 38%),
+    /* overall sky */
+    linear-gradient(175deg, #1f0a3a 0%, #180832 25%, #120625 55%, #0d0420 78%, #0a0518 100%);
+  background-attachment: fixed;
+  -webkit-font-smoothing: antialiased;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
 }

@@ -149,3 +149,38 @@ The bands separate by **0.0265**. A threshold exists, but it sits in a narrow ga
 **One caution about the observed scores.** Nova similarities occupy a narrow band — nothing scored below 0.37 even for questions with no lexical or semantic relationship to the corpus. Absolute cosine values here carry less information than the gap between them, so anyone tuning this should look at separation, not at whether a number "looks high."
 
 **How to recalibrate.** Run `evals/run.py --retrieval-only`, then move the threshold and watch `abstention_accuracy` against `false_abstention_rate`. Raising it always improves the first and worsens the second; the useful value balances them.
+
+---
+
+## D10 — Ported Recall-ben's visual layer only, not its application
+
+**Decision.** (2026-07-28) Took the cosmic theme and one component from the `Recall-ben` branch. Left its pages, routing, data layer, and dependencies behind.
+
+**What that branch actually is.** Not UI tweaks — a full TypeScript rewrite: 92 files, +7,706/−3,653, React Router pages, a reagraph knowledge graph, and reactbits animation components.
+
+**Rejected: adopting it wholesale.** Two disqualifying findings:
+
+1. **Its API client is dead code.** `src/api/recall.ts` is imported by nothing, and targets `/search` and `/timeline`, which do not exist, with a request shape (`query`, no auth headers) that our backend would reject.
+2. **Every page reads from fixtures.** `data/threads.ts` is 769 lines of hardcoded threads with pre-written answers, citations, and timelines. `Chat.tsx` calls `findThread(...)` against that file. Nothing reaches a backend.
+
+Adopting it means adopting a mock application and rewiring every page — larger than the work already done, against spec rule 4, and with a real chance of ending up with something that demos beautifully and answers nothing.
+
+**What came across, and why only this.**
+- **The theme** (`index.css`): layered cosmic gradient, design tokens, Space Grotesk headings. Applied through the existing `:root` token block in `App.css` rather than rewriting 1,400 lines of rules — surfaces made translucent so the backdrop reads through.
+- **`SpotlightCard`**: cursor-tracking highlight. The only reactbits component with **no dependencies**. Aurora needs `ogl` and WebGL, `SplitText` needs `gsap`, `BlurText` needs `motion`. Converted TSX→JSX and Tailwind utilities→plain CSS to match this codebase.
+
+**Rejected: pulling in Aurora and the text animations.** Adding `three`, `ogl`, `gsap`, `motion`, and `reagraph` for decoration, days before a demo, on a machine where a dev-server transform already takes minutes. The CSS gradient delivers most of the same effect at zero dependency cost. Aurora remains a cheap addition later if wanted.
+
+**Consequence.** Ben's visual direction is preserved and our working retrieval is untouched. The two are independent, so his branch can keep evolving without conflicting here.
+
+---
+
+## D11 — Frontend serves a production build for demos, not the dev server
+
+**Decision.** (2026-07-28) `.claude/launch.json` runs `vite preview` against `dist/` rather than `vite dev`.
+
+**Why.** On this machine the dev server took **175 seconds to start** and **~5 minutes to transform a single JSX file**, and died mid-session with `ERR_CONNECTION_REFUSED`, leaving a blank page. The production build compiles everything once in ~48 seconds and then serves static files in ~3 seconds.
+
+**Rejected: fixing the dev server.** The root cause is machine-level disk I/O, not configuration — see the environment notes in the session log. Not fixable from inside this repo.
+
+**Trade-off accepted.** No hot reload; a rebuild is needed after each change. For demo rehearsal that is the right trade, and it is closer to what gets deployed anyway.

@@ -1,12 +1,21 @@
+/*
+  Retheme via the existing token block rather than rewriting 1400 lines of
+  rules. Surfaces are translucent so the cosmic gradient in index.css shows
+  through instead of being covered by opaque panels.
+*/
 :root {
-  --bg: #03060d;
-  --surface: #0e1118;
-  --surface-soft: #131722;
-  --text: #f1f3f7;
-  --muted: #8f98aa;
-  --line: rgba(255, 255, 255, 0.1);
+  --bg: #0a0518;
+  --surface: rgba(13, 10, 30, 0.7);
+  --surface-soft: rgba(22, 18, 42, 0.8);
+  --text: rgba(255, 255, 255, 0.95);
+  --muted: rgba(255, 255, 255, 0.55);
+  --line: rgba(255, 255, 255, 0.12);
   --line-soft: rgba(255, 255, 255, 0.06);
-  --accent: #7d4bff;
+  --accent: #8b5cf6;
+  --accent-hover: #a78bfa;
+  --accent-muted: rgba(139, 92, 246, 0.15);
+  --font-heading: 'Space Grotesk', 'Inter', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
 }
 
 * {
@@ -16,21 +25,28 @@
 .app-shell {
   display: flex;
   min-height: 100vh;
-  background:
-    radial-gradient(100% 60% at 58% 0%, rgba(70, 88, 180, 0.16) 0%, rgba(3, 6, 13, 0) 65%),
-    var(--bg);
+  /* Transparent so the body gradient is the backdrop for the whole app. */
+  background: transparent;
   color: var(--text);
-  border: 1px solid rgba(67, 124, 255, 0.55);
 }
 
 .sidebar {
   width: 248px;
   flex: 0 0 248px;
-  background: linear-gradient(180deg, #070a11 0%, #04070d 100%);
+  background: rgba(10, 5, 24, 0.55);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   border-right: 1px solid var(--line-soft);
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+}
+
+h1, h2, h3,
+.result-content h2,
+.result-content h3 {
+  font-family: var(--font-heading);
+  letter-spacing: -0.02em;
 }
 
 .brand-row {
@@ -1403,4 +1419,80 @@
     gap: 12px;
     font-size: 13px;
   }
+}
+
+/* --- Ported visual layer (Recall-ben) ------------------------------------ */
+
+.spotlight-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.spotlight-card-glow {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  transition: opacity 500ms ease-in-out;
+}
+
+/* Translucent so the cosmic backdrop reads through the panels. */
+.source-item {
+  background: rgba(22, 18, 42, 0.55) !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transition: border-color 200ms ease, transform 200ms ease;
+}
+
+.source-item:hover {
+  border-color: var(--line) !important;
+  transform: translateY(-1px);
+}
+
+.source-item-link {
+  color: var(--accent-hover);
+  text-decoration: none;
+  display: inline-block;
+}
+
+.source-item-link:hover {
+  text-decoration: underline;
+}
+
+/* Per-decision citations, rendered under the claim they support. */
+.decision-citations {
+  margin-top: 6px;
+  font-size: 12px;
+  font-family: var(--font-mono);
+  color: var(--muted);
+}
+
+.decision-citations a {
+  color: var(--accent-hover);
+  text-decoration: none;
+}
+
+.decision-citations a:hover {
+  text-decoration: underline;
+}
+
+.context-empty {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 4px 0 0;
+}
+
+/* A citation with no resolvable link: visibly not clickable (spec rule 5). */
+.context-link-dead {
+  opacity: 0.55;
+  cursor: default;
+}
+
+a.context-link {
+  display: block;
+  text-decoration: none;
+  color: var(--accent-hover);
+}
+
+a.context-link:hover {
+  text-decoration: underline;
 }

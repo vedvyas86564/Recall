@@ -63,14 +63,27 @@ def near_misses(retrieved: list[dict], limit: int = NEAR_MISS_LIMIT) -> list[dic
     Spec 1.2 asks for "offers what it did find" -- a bare "I don't know" is less
     useful than one that shows the closest material and lets the reader judge.
     """
+    from services.answer import citation_title
+    from services.citations import source_ref
+
     ranked = sorted(retrieved, key=lambda c: c.get("score") or 0.0, reverse=True)
     out = []
-    for c in ranked[:limit]:
+    seen = set()
+
+    for c in ranked:
+        if len(out) >= limit:
+            break
+        # One lead per thread. Several chunks of the same issue listed as
+        # separate leads overstates how much distinct material was found.
+        key = source_ref(c) or c.get("chunk_id")
+        if key in seen:
+            continue
+        seen.add(key)
+
         meta = c.get("metadata", {}) or {}
-        channel = meta.get("channel") or c.get("channel") or ""
         out.append({
             "id": c.get("chunk_id", ""),
-            "title": f"Slack · #{channel}" if channel else "Slack",
+            "title": citation_title(meta, c),
             "excerpt": (c.get("text") or "")[:240],
             "url": meta.get("url"),
             "score": round(c.get("score") or 0.0, 4),

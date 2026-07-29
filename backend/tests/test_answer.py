@@ -111,6 +111,89 @@ def test_url_is_none_not_fabricated_when_absent():
     assert sources[0]["url"] is None
 
 
-def test_citation_title_falls_back_without_channel():
-    assert as_citation({"chunk_id": "c", "text": "t", "metadata": {}})["title"] == "Slack"
-    assert as_citation({"chunk_id": "c", "text": "t", "metadata": {"channel": "eng"}})["title"] == "Slack · #eng"
+def title_of(meta):
+    return as_citation({"chunk_id": "c", "text": "t", "metadata": meta})["title"]
+
+
+def test_github_citations_are_labelled_by_repo_and_issue():
+    """
+    Titles were hardcoded to "Slack" regardless of source, so every citation on
+    the GitHub corpus read "Slack" -- wrong provenance beside a correct answer,
+    which looks like a fabricated citation even when the link is right.
+    """
+    assert title_of({
+        "source": "github_issue", "repo": "astral-sh/uv", "issue_number": 3957,
+        "title": "Add a uv build backend",
+    }) == "astral-sh/uv#3957 · Add a uv build backend"
+
+
+def test_github_citation_without_a_title_still_identifies_the_thread():
+    assert title_of({
+        "source": "github_issue", "repo": "astral-sh/uv", "issue_number": 1495,
+    }) == "astral-sh/uv#1495"
+
+
+def test_slack_citations_keep_their_channel_label():
+    assert title_of({"source": "slack", "channel": "eng"}) == "Slack · #eng"
+    assert title_of({"source": "slack_export", "channel": "eng"}) == "Slack · #eng"
+    assert title_of({"source": "slack"}) == "Slack"
+
+
+def test_unknown_source_does_not_claim_a_provenance_it_lacks():
+    """Better a neutral label than confidently naming the wrong system."""
+    assert title_of({}) == "Source"
+
+
+# --- Several chunks from one thread collapse to one citation ----------------
+
+def gh_chunk(cid, issue, title="T"):
+    return {
+        "chunk_id": cid,
+        "text": "text",
+        "metadata": {
+            "source": "github_issue", "repo": "astral-sh/uv",
+            "issue_number": issue, "title": title,
+            "url": f"https://github.com/astral-sh/uv/issues/{issue}",
+        },
+    }
+
+
+def test_multiple_chunks_from_one_thread_cite_once():
+    """
+    A long thread routinely contributes several chunks to one answer. Listing
+    each rendered the same issue seven times in a row, which reads as seven
+    independent sources when there is only one.
+    """
+    retrieved = [gh_chunk(f"c{i}", 1495) for i in range(7)]
+    decisions = [decision("Venv storage", [f"c{i}" for i in range(7)])]
+
+    decisions, sources = attach_citations(decisions, retrieved)
+
+    assert len(decisions[0]["citations"]) == 1
+    assert len(sources) == 1
+    assert sources[0]["title"].startswith("astral-sh/uv#1495")
+
+
+def test_distinct_threads_still_cite_separately():
+    retrieved = [gh_chunk("c0", 1495), gh_chunk("c1", 3957), gh_chunk("c2", 1495)]
+    decisions = [decision("D", ["c0", "c1", "c2"])]
+
+    decisions, sources = attach_citations(decisions, retrieved)
+
+    assert [s["title"].split(" ·")[0] for s in sources] == [
+        "astral-sh/uv#1495", "astral-sh/uv#3957",
+    ]
+
+
+def test_evidence_ids_are_not_collapsed_only_the_display():
+    """Dedup is presentational; the underlying evidence list stays complete."""
+    retrieved = [gh_chunk(f"c{i}", 1495) for i in range(3)]
+    decisions, _ = attach_citations([decision("D", ["c0", "c1", "c2"])], retrieved)
+    assert decisions[0]["evidence_chunk_ids"] == ["c0", "c1", "c2"]
+
+
+def test_unidentifiable_chunks_do_not_merge_together():
+    """Without a source ref, fall back to chunk id -- over-count, never merge."""
+    retrieved = [chunk("c0"), chunk("c1")]
+    _, sources = attach_citations([decision("D", ["c0", "c1"])], retrieved)
+    assert len(sources) == 2
