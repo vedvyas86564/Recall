@@ -22,7 +22,7 @@ from services.bedrock_embed import embed_one
 from services.nova_extract import extract_decisions
 from services.db import get_pool, close_pool
 from services.retrieval import retrieve_top_k
-from services.ingest import ingest_slack_export
+from services.ingest import ingest_github_threads, ingest_slack_export
 
 # ---------------------------------------------------------------------------
 # Config
@@ -109,6 +109,13 @@ class IngestRequest(BaseModel):
     export_dir: str = "slack_export"
 
 
+class GitHubIngestRequest(BaseModel):
+    repo: str
+    min_comments: int = 8
+    max_threads: int = 300
+    state: str = "all"
+
+
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
@@ -125,6 +132,18 @@ async def root():
 @app.post("/ingest")
 async def ingest(req: IngestRequest, request: Request):
     result = await ingest_slack_export(req.export_dir, request.state.org_id)
+    return {"status": "done", **result}
+
+
+@app.post("/ingest/github")
+async def ingest_github(req: GitHubIngestRequest, request: Request):
+    result = await ingest_github_threads(
+        req.repo,
+        request.state.org_id,
+        min_comments=req.min_comments,
+        max_threads=req.max_threads,
+        state=req.state,
+    )
     return {"status": "done", **result}
 
 

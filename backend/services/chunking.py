@@ -25,20 +25,59 @@ MAX_CHARS = 1600
 OVERLAP_MESSAGES = 1
 
 
-def chunk_slack_thread(doc, max_chars=MAX_CHARS, overlap_messages=OVERLAP_MESSAGES):
-    """
-    Pack whole Slack messages into chunks up to max_chars.
+def _slack_chunk_metadata(doc, anchor, current):
+    channel_id = doc.get("channel_id", "")
+    thread_ts = doc.get("thread_ts")
+    return {
+        "source": "slack",
+        "channel": doc.get("channel"),
+        "channel_id": channel_id,
+        "thread_ts": thread_ts,
+        # None when the workspace domain is unconfigured. Downstream must treat
+        # a missing url as "cite without a link", never as a reason to
+        # synthesize one (spec rule 5).
+        "url": slack_permalink(channel_id, anchor["ts"], thread_ts),
+    }
 
-    Each chunk records the ts range it covers and a permalink anchored to its
-    first message, so a citation points at the specific part of the thread the
-    text came from rather than at the thread generally.
+
+def _github_chunk_metadata(doc, anchor, current):
+    return {
+        "source": "github_issue",
+        "repo": doc.get("repo"),
+        "issue_number": doc.get("issue_number"),
+        "is_pull_request": doc.get("is_pull_request", False),
+        "state": doc.get("state"),
+        "labels": doc.get("labels", []),
+        # Anchored to the first comment in this chunk, so a citation opens the
+        # exact comment the text came from rather than the top of a 40-reply
+        # thread. Comments carry their own permalink from the fetcher.
+        "url": anchor.get("url") or doc.get("url"),
+    }
+
+
+_METADATA_BUILDERS = {
+    "slack_export": _slack_chunk_metadata,
+    "github_issue": _github_chunk_metadata,
+}
+
+
+def chunk_thread(doc, max_chars=MAX_CHARS, overlap_messages=OVERLAP_MESSAGES):
+    """
+    Pack whole messages into chunks up to max_chars.
+
+    Source-agnostic: a GitHub issue and a Slack thread are the same shape -- an
+    opening post and replies, where the answer is often several messages down --
+    so both take this path and only the metadata differs.
+
+    Each chunk records the ts range it covers and a link anchored to its first
+    message, so a citation points at the part of the thread the text actually
+    came from rather than at the thread generally.
     """
     messages = doc.get("messages") or []
     if not messages:
         return []
 
-    channel_id = doc.get("channel_id", "")
-    thread_ts = doc.get("thread_ts")
+    build_metadata = _METADATA_BUILDERS.get(doc.get("source"), _slack_chunk_metadata)
 
     chunks = []
     current = []
@@ -52,26 +91,22 @@ def chunk_slack_thread(doc, max_chars=MAX_CHARS, overlap_messages=OVERLAP_MESSAG
         text = "\n".join(m["line"] for m in current)
         anchor = current[0]
 
+        metadata = {
+            "visibility": doc.get("visibility", "public"),
+            "start_ts": anchor["ts"],
+            "end_ts": current[-1]["ts"],
+            "authors": sorted({m["author"] for m in current}),
+            "message_count": len(current),
+            "title": doc.get("title"),
+            **build_metadata(doc, anchor, current),
+        }
+
         chunks.append({
             "chunk_id": str(uuid.uuid4()),
             "document_id": doc["document_id"],
             "chunk_index": len(chunks),
             "text": text,
-            "metadata": {
-                "source": "slack",
-                "channel": doc.get("channel"),
-                "channel_id": channel_id,
-                "visibility": doc.get("visibility", "public"),
-                "thread_ts": thread_ts,
-                "start_ts": anchor["ts"],
-                "end_ts": current[-1]["ts"],
-                "authors": sorted({m["author"] for m in current}),
-                "message_count": len(current),
-                # None when the workspace domain is unconfigured. Downstream must
-                # treat a missing url as "cite without a link", never as a reason
-                # to synthesize one (spec rule 5).
-                "url": slack_permalink(channel_id, anchor["ts"], thread_ts),
-            },
+            "metadata": metadata,
         })
         current = []
         current_len = 0
@@ -94,6 +129,10 @@ def chunk_slack_thread(doc, max_chars=MAX_CHARS, overlap_messages=OVERLAP_MESSAG
     return chunks
 
 
+# Retained so existing imports and tests keep working.
+chunk_slack_thread = chunk_thread
+
+
 def chunk_document(doc, max_chars=MAX_CHARS, overlap=None):
     """
     Dispatch on document shape.
@@ -104,7 +143,7 @@ def chunk_document(doc, max_chars=MAX_CHARS, overlap=None):
     thread-aware path; anything else falls back to the character window.
     """
     if doc.get("messages"):
-        return chunk_slack_thread(doc, max_chars=max_chars)
+        return chunk_thread(doc, max_chars=max_chars)
     return _chunk_by_chars(doc, max_chars=max_chars)
 
 

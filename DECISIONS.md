@@ -85,3 +85,42 @@ So: org is the boundary that exists and is enforced; user is the boundary that i
 **Why deferring costs almost nothing.** The groundwork is already in place and tested: `citations.py` has `github_blob_url` with line anchors and its own tests, and every chunk carries a `source` field in metadata. Reviving GitHub is an ingestion module plus a chunker, against interfaces that already exist.
 
 **The real cost, stated plainly.** A single-source corpus cannot demonstrate cross-source synthesis, which is a large part of what makes the "ask it why we chose pgvector" narrative land — the answer to that question genuinely lives in *both* the Slack discussion and the schema commit. Slack-only Phase 1 tells half that story. Worth revisiting before the demo if there is time.
+
+**Superseded 2026-07-28 by D8.** No Slack corpus turned out to be reachable, and GitHub is now the sole source rather than the deferred one.
+
+---
+
+## D8 — Corpus is a public OSS project's issue threads, not Slack
+
+**Decision.** (2026-07-28) Phase 1 indexes **`astral-sh/uv`** GitHub issue and PR discussion threads. Slack is out of scope for Phase 1 entirely.
+
+**What forced the change.** Neither Ved nor Diyan holds admin on any Slack workspace, and a standard export requires Workspace Owner or Admin. The GitHub fallback assumed in D7 turned out to be equally thin — measured across every repo on the account:
+
+| Repo | Commits | PRs | Issues |
+|---|---|---|---|
+| Recall | 23 (12 from this session) | 3, all with empty bodies | 0 |
+| kalshi-market-efficiency | 9 | 0 | 0 |
+| voices-around-us-BUILD | 9 | 1 | 0 |
+
+So the constraint was never "Slack is locked." There is no few-thousand-message real corpus of our own anywhere.
+
+**Rejected: generating a synthetic Slack export.** It would unblock everything within the hour, and spec §1.1 argues against it directly ("a few thousand real messages beat a hundred synthetic ones"). But the decisive cost is what it does to the eval harness: writing both the corpus and the golden questions means unconsciously phrasing questions in the words the corpus already uses. Recall@k pins near 100% and stays there, and no genuine retrieval failure can surface, because there is no gap between how the corpus speaks and how a stranger asks. The result is a green dashboard measuring nothing — worse than having no harness, because it manufactures confidence in the exact numbers we would show someone. Synthetic data remains correct for *tests*, where fixtures are the point; it is the demo path and the evals where provenance carries the weight.
+
+**Why OSS issue threads are a genuine substitute, not a consolation.** They are real threaded conversation — a question, several replies, a decision — which is structurally what Slack threads are, so the thread-aware chunking from D-chunking work exercises properly rather than degenerating to one-message documents. And GitHub issue comments have stable permalinks, so citations deep-link to the exact comment rather than the thread generally.
+
+**Why `astral-sh/uv` specifically.** Measured discussion-rich threads:
+
+| Repo | >5 comments | >10 comments |
+|---|---|---|
+| **astral-sh/uv** | **2,394** | **840** |
+| fastapi/fastapi | 1,197 | 431 |
+| supabase/supabase | 1,059 | 401 |
+| pgvector/pgvector | 134 | 36 |
+
+Twice the volume of anything else, and a packaging/tooling project generates exactly the "why did we choose X over Y" argument that `extract_decisions` was built to pull out. `pgvector` was tempting for its resonance with our own stack, but 134 threads is too thin to measure against.
+
+**What is gained beyond unblocking.** The demo audience can independently verify every answer, because the corpus is public. A private workspace demo asks them to take the answers on trust; this one does not. Canopy's stated persona — "the person who joined last week" — maps cleanly onto a new contributor onboarding into an unfamiliar open-source codebase.
+
+**What is lost.** The dogfooding narrative. "We indexed the building of this product" was the strongest version of the story and it is not available.
+
+**Consequence for D7.** Reversed. GitHub is no longer deferred; it is the only source. The two GitHub acceptance criteria D7 struck are back in force, and the Slack-specific ones are out. Slack ingestion code stays — it is tested and correct, and returns when workspace access does.

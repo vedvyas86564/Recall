@@ -4,11 +4,26 @@ import json
 from services.bedrock_embed import embed_many_texts
 from services.chunking import chunk_document
 from services.db import get_pool
+from services.github_threads import fetch_issue_threads
 from services.slack_export import _detect_private_sources, parse_slack_export
 
 
 class PrivateContentError(RuntimeError):
     """Raised when an export contains non-public channels."""
+
+
+def github_document_external_id(doc: dict) -> str:
+    """
+    Stable identity for a GitHub thread. Issue numbers are permanent and never
+    reused, so this survives titles and labels changing.
+    """
+    return f"{doc.get('repo')}#{doc.get('issue_number')}"
+
+
+def document_external_id(doc: dict) -> str:
+    if doc.get("source") == "github_issue":
+        return github_document_external_id(doc)
+    return slack_document_external_id(doc)
 
 
 def slack_document_external_id(doc: dict) -> str:
@@ -43,8 +58,43 @@ async def ingest_slack_export(export_dir: str, org_id: str) -> dict:
             "Remove these files or supply a standard public-channel export."
         )
 
+    return await persist_documents(parse_slack_export(export_dir), org_id)
+
+
+async def ingest_github_threads(
+    repo: str,
+    org_id: str,
+    min_comments: int = 8,
+    max_threads: int = 300,
+    state: str = "all",
+) -> dict:
+    """
+    Fetch and index GitHub issue/PR discussion threads.
+
+    The Phase 1 corpus (DECISIONS.md D8). Threads normalize into the same
+    document shape as Slack, so everything downstream -- chunking, embedding,
+    persistence -- is shared.
+    """
+    docs = await asyncio.to_thread(
+        fetch_issue_threads,
+        repo,
+        min_comments=min_comments,
+        max_threads=max_threads,
+        state=state,
+    )
+    result = await persist_documents(docs, org_id)
+    result["repo"] = repo
+    return result
+
+
+async def persist_documents(docs: list[dict], org_id: str) -> dict:
+    """
+    Chunk, embed, and upsert documents of any source.
+
+    Shared by both ingestion paths so idempotency and the public-only guarantee
+    cannot drift apart between them.
+    """
     pool = await get_pool()
-    docs = parse_slack_export(export_dir)
 
     # Chunk everything first so embedding can run as one wide concurrent batch
     # rather than a serial call per chunk inside a per-document loop.
@@ -53,14 +103,14 @@ async def ingest_slack_export(export_dir: str, org_id: str) -> dict:
     for doc in docs:
         if doc.get("visibility") != "public":
             raise PrivateContentError(
-                f"Refusing to ingest non-public channel #{doc.get('channel')}."
+                f"Refusing to ingest non-public source: {doc.get('title') or doc.get('channel')}."
             )
         chunks = chunk_document(doc)
         doc_chunks[doc["document_id"]] = chunks
         all_chunks.extend(chunks)
 
     if not all_chunks:
-        return {"documents": 0, "chunks": 0, "embeddings": 0, "skipped_unchanged": 0}
+        return {"documents": 0, "chunks": 0, "embeddings": 0}
 
     vectors = await asyncio.to_thread(
         embed_many_texts,
@@ -72,7 +122,7 @@ async def ingest_slack_export(export_dir: str, org_id: str) -> dict:
     documents = chunks_written = embeddings_written = 0
 
     for doc in docs:
-        doc_external = slack_document_external_id(doc)
+        doc_external = document_external_id(doc)
 
         async with pool.acquire() as conn:
             async with conn.transaction():
@@ -96,14 +146,13 @@ async def ingest_slack_export(export_dir: str, org_id: str) -> dict:
                     doc.get("text", ""),
                     doc.get("visibility", "public"),
                     json.dumps({
-                        "channel": doc.get("channel"),
-                        "channel_id": doc.get("channel_id"),
-                        "thread_ts": doc.get("thread_ts"),
-                        "participants": doc.get("participants"),
-                        "start_ts": doc.get("start_ts"),
-                        "end_ts": doc.get("end_ts"),
-                        "message_count": doc.get("metadata", {}).get("message_count"),
-                    }),
+                        k: doc.get(k) for k in (
+                            "channel", "channel_id", "thread_ts",      # slack
+                            "repo", "issue_number", "is_pull_request", # github
+                            "state", "labels", "url",
+                            "participants", "start_ts", "end_ts",
+                        ) if doc.get(k) is not None
+                    } | {"message_count": doc.get("metadata", {}).get("message_count")}),
                 )
                 doc_id = doc_row["id"]
                 documents += 1

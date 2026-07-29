@@ -67,6 +67,13 @@ def source_ref(chunk: dict) -> str | None:
             return None
         return f"slack:{channel}:{thread}"
 
+    if source == "github_issue":
+        repo = meta.get("repo") or ""
+        number = meta.get("issue_number")
+        if not repo or not number:
+            return None
+        return f"github:{repo}:{number}"
+
     if source == "github":
         repo = meta.get("repo") or ""
         path = meta.get("path") or ""
@@ -75,6 +82,25 @@ def source_ref(chunk: dict) -> str | None:
         return f"github:{repo}:{path}"
 
     return None
+
+
+def github_issue_url(repo: str, number: int, comment_id: int | None = None) -> str | None:
+    """
+    https://github.com/<owner/repo>/issues/<n>                     (thread)
+    https://github.com/<owner/repo>/issues/<n>#issuecomment-<id>   (exact comment)
+
+    Unlike a blob URL, this needs no ref pin: issue comments are immutable in
+    place, so the link resolves to the same content indefinitely. GitHub also
+    redirects /issues/<n> to /pull/<n> automatically when the number is a PR,
+    so one form covers both.
+    """
+    if not repo or "/" not in repo or not number:
+        return None
+
+    url = f"https://github.com/{repo}/issues/{number}"
+    if comment_id:
+        url += f"#issuecomment-{comment_id}"
+    return url
 
 
 def github_blob_url(
