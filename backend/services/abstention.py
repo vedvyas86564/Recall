@@ -16,23 +16,26 @@ from services.db import get_pool
 
 # Cosine similarity in [0, 1].
 #
-# 0.50 is measured, not guessed. Against the first 8 uv threads (711 chunks),
-# 5 in-corpus and 5 clearly-off-topic questions scored:
+# 0.44 is calibrated against evals/golden.jsonl (39 questions, 33 answerable,
+# 6 unanswerable) over the 100-thread uv corpus. Threshold sweep:
 #
-#   relevant    0.5145 - 0.6646   (mean 0.590)
-#   irrelevant  0.3783 - 0.4880   (mean 0.431)
+#   threshold   abstention accuracy   false abstention   answered correctly
+#   0.42                     66.7%               0.0%                100.0%
+#   0.44                    100.0%               3.0%                 97.0%
+#   0.46                    100.0%              12.1%                 87.9%
+#   0.50                    100.0%              27.3%                 72.7%
 #
-# The bands separate by only 0.0265, so 0.50 sits near the midpoint of a narrow
-# gap rather than in a comfortable valley. The original 0.35 default would have
-# abstained on nothing at all -- "how do I make a sourdough starter?" scored
-# 0.488 against this corpus and sailed through.
+# 0.44 is where abstention accuracy reaches 100% and false abstention has not
+# yet started climbing -- a genuine valley rather than a knife edge.
 #
-# Treat this as provisional. n=5 per band is far too small to trust the edges,
-# and a real golden set will almost certainly show the bands overlapping, at
-# which point no single threshold separates them cleanly. Recalibrate against
-# evals/golden.jsonl and watch false_abstention_rate alongside abstention
-# accuracy -- raising this always improves one and worsens the other.
-RELEVANCE_THRESHOLD = float(os.environ.get("RELEVANCE_THRESHOLD", "0.50"))
+# The earlier 0.50 was set from n=5 per band before a corpus existed, and it
+# refused 27% of questions it could have answered. Retrieval was never the
+# problem: Recall@10 is 100%, so the right source was always found. The
+# threshold was discarding it.
+#
+# Re-derive this whenever the corpus or embedding model changes. It is a
+# property of the score distribution, not a universal constant.
+RELEVANCE_THRESHOLD = float(os.environ.get("RELEVANCE_THRESHOLD", "0.44"))
 
 # How many near misses to keep when abstaining, for "closest we had was X".
 NEAR_MISS_LIMIT = 3

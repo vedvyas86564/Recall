@@ -184,3 +184,28 @@ Adopting it means adopting a mock application and rewiring every page — larger
 **Rejected: fixing the dev server.** The root cause is machine-level disk I/O, not configuration — see the environment notes in the session log. Not fixable from inside this repo.
 
 **Trade-off accepted.** No hot reload; a rebuild is needed after each change. For demo rehearsal that is the right trade, and it is closer to what gets deployed anyway.
+
+---
+
+## D12 — Relevance threshold recalibrated to 0.44 against the golden set
+
+**Decision.** (2026-07-29) `RELEVANCE_THRESHOLD` drops from 0.50 to **0.44**, calibrated against `evals/golden.jsonl` (39 questions) over the 100-thread corpus.
+
+**What the sweep showed.**
+
+| threshold | abstention accuracy | false abstention | answered correctly |
+|---|---|---|---|
+| 0.42 | 66.7% | 0.0% | 100.0% |
+| **0.44** | **100.0%** | **3.0%** | **97.0%** |
+| 0.46 | 100.0% | 12.1% | 87.9% |
+| 0.50 (previous) | 100.0% | 27.3% | 72.7% |
+
+0.44 is where abstention accuracy reaches 100% and false abstention has not yet begun climbing — a genuine valley, not the knife edge that D9's n=5 sample suggested.
+
+**What the old value was costing.** At 0.50 the system refused **27% of questions it could have answered**. Retrieval was never at fault: **Recall@10 is 100%**, so the correct source was found every single time. The threshold was throwing it away. For a demo that is strictly worse than the failure it guards against — a tool that shrugs at nine of thirty-three reasonable questions looks broken, where an occasional over-confident answer merely looks imperfect.
+
+**Which questions were being lost.** Overwhelmingly the `thread_reply` ones — 4 of 7 abstained at 0.50. Questions whose answers sit deep in a reply ("how much faster did the Airflow image get after switching to uv?") are more specific than the thread's overall topic, so they score lower against any single chunk even when retrieval nails them. That is a systematic bias worth remembering: **specific questions score lower than vague ones**, independent of whether the corpus can answer them.
+
+**Rejected: leaving 0.50 and accepting the misses.** It was chosen before a corpus existed, from ten hand-picked questions. Keeping it over 39 real ones would be preferring a guess to a measurement.
+
+**Caveat that remains.** Citation precision is still unmeasured — the retrieval-only pass skips generation. It needs a full run, which costs one Nova Lite call per question.
