@@ -16,7 +16,11 @@ services:
     runtime: docker
     dockerfilePath: ./backend/Dockerfile
     dockerContext: ./backend
-    plan: starter
+    # Free tier: no card required. It spins down after ~15 minutes idle, so the
+    # first request after a lull waits ~50s for a cold start. Acceptable for
+    # proving the pipeline; switch to `starter` before a live demo so an
+    # investor's first question does not land on a sleeping service.
+    plan: free
     healthCheckPath: /health
     envVars:
       - key: AWS_REGION

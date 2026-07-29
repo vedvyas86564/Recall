@@ -113,6 +113,10 @@ caught surprised by it does not.
 
 ## Setup, before anyone is watching
 
+0. **If the backend is on Render's free plan, wake it first.** Free services
+   sleep after ~15 minutes idle and take ~50s to come back. Open `/health` and
+   wait for `{"status":"ok","db":true}` before anyone is in the room. Upgrading
+   to Starter removes this entirely and is worth $7 on demo day.
 1. Backend takes several minutes to boot cold. **Start it early.**
 2. Warm the pipeline with one throwaway query — the first embedding call after
    a cold start is slower than the rest.
