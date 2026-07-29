@@ -215,7 +215,24 @@ async def list_documents(request: Request):
         """,
         request.state.org_id,
     )
+
+    # Real totals for the UI. The rows above are capped at 50, so counting them
+    # would understate a larger corpus -- the Source Management page showed
+    # "0 Total Items" against 100 indexed documents before this.
+    totals = await pool.fetchrow(
+        """
+        SELECT
+          (SELECT count(*) FROM documents WHERE org_id = $1::uuid) AS documents,
+          (SELECT count(*) FROM chunks    WHERE org_id = $1::uuid) AS chunks,
+          (SELECT max(updated_at) FROM documents WHERE org_id = $1::uuid) AS last_indexed
+        """,
+        request.state.org_id,
+    )
+
     return {
+        "total_documents": totals["documents"],
+        "total_chunks": totals["chunks"],
+        "last_indexed": totals["last_indexed"].isoformat() if totals["last_indexed"] else None,
         "documents": [
             {
                 "id": str(r["id"]),

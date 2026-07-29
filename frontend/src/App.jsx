@@ -46,6 +46,9 @@ function App() {
   // Threads actually present in the index, used to show real examples on the
   // landing page instead of invented ones.
   const [corpusDocs, setCorpusDocs] = useState([])
+  // Real corpus totals from the backend, so the Source Management card reports
+  // what is actually indexed instead of a hardcoded figure.
+  const [corpusStats, setCorpusStats] = useState({})
 
   const primaryNav = [
     { id: 'menu-threads', label: 'Threads', icon: threadsIcon },
@@ -72,53 +75,32 @@ function App() {
     icon: githubCardIcon,
   }))
 
+  // The one genuinely indexed source. Its numbers come from the backend rather
+  // than being written here -- this card previously rendered nothing at all,
+  // because 'github' had no catalog entry and the map silently dropped it.
   const sourceCatalog = {
-    slack: {
-      key: 'slack',
-      name: 'Slack',
-      subtitle: 'Communication',
-      logo: slackLogo,
-      primaryLabel: 'Messages',
-      primaryValue: '85.2k',
-      itemCount: 85200,
-      secondaryLabel: 'Last Sync',
-      secondaryValue: '5m ago',
-    },
-    gmail: {
-      key: 'gmail',
-      name: 'Gmail',
-      subtitle: 'Email',
-      logo: gmailLogo,
-      primaryLabel: 'Emails',
-      primaryValue: '12.5k',
-      itemCount: 12500,
-      secondaryLabel: 'Last Sync',
-      secondaryValue: '10m ago',
-    },
-    meeting: {
-      key: 'meeting',
-      name: 'Meeting Transcripts',
-      subtitle: 'Audio & Video',
-      logo: meetingsLogo,
-      primaryLabel: 'Transcripts',
-      primaryValue: '218',
-      itemCount: 218,
-      secondaryLabel: 'Last Sync',
-      secondaryValue: 'Now',
-      meetingStyle: true,
-    },
-    notion: {
-      key: 'notion',
-      name: 'Notion',
-      subtitle: 'Docs & Wiki',
-      logo: notionLogo,
-      primaryLabel: 'Pages',
-      primaryValue: '4.9k',
-      itemCount: 4900,
-      secondaryLabel: 'Last Sync',
-      secondaryValue: '3m ago',
+    github: {
+      key: 'github',
+      name: 'GitHub',
+      subtitle: corpusStats.repo ?? 'Issues & discussions',
+      logo: githubCardIcon,
+      primaryLabel: 'Threads',
+      primaryValue: corpusStats.documents?.toLocaleString() ?? '—',
+      secondaryLabel: 'Chunks',
+      secondaryValue: corpusStats.chunks?.toLocaleString() ?? '—',
     },
   }
+
+  // Sources with no ingestion behind them. Listed so the roadmap is visible,
+  // but not connectable: the previous "Add Slack" button fabricated a connected
+  // integration reporting 85.2k messages, which is exactly the claim that falls
+  // apart when someone clicks it in a demo (spec rule 4).
+  const plannedSources = [
+    { key: 'slack', name: 'Slack', logo: slackLogo, note: 'Parser built, workspace auth pending' },
+    { key: 'gmail', name: 'Gmail', logo: gmailLogo, note: 'Planned' },
+    { key: 'meeting', name: 'Meeting transcripts', logo: meetingsLogo, note: 'Planned' },
+    { key: 'notion', name: 'Notion', logo: notionLogo, note: 'Planned' },
+  ]
 
   // Only sources that are genuinely indexed. Slack, Gmail, and meetings were
   // previously shown as 'connected' with no ingestion behind any of them
@@ -288,21 +270,6 @@ function App() {
     setServices((prev) => prev.filter((service) => service.id !== serviceId))
   }
 
-  const addService = (serviceType) => {
-    if (services.some((service) => service.type === serviceType)) return
-
-    const serviceId = `svc-${serviceType}-${Date.now()}`
-    setServices((prev) => [...prev, { id: serviceId, type: serviceType, status: 'loading' }])
-
-    loadTimers.current[serviceId] = setTimeout(() => {
-      setServices((prev) =>
-        prev.map((service) =>
-          service.id === serviceId ? { ...service, status: 'connected' } : service,
-        ),
-      )
-      clearLoadTimer(serviceId)
-    }, 2600)
-  }
 
   useEffect(
     () => () => {
@@ -322,7 +289,14 @@ function App() {
     })
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error(res.status))))
       .then((data) => {
-        if (!cancelled) setCorpusDocs(data.documents ?? [])
+        if (cancelled) return
+        setCorpusDocs(data.documents ?? [])
+        setCorpusStats({
+          documents: data.total_documents,
+          chunks: data.total_chunks,
+          lastIndexed: data.last_indexed,
+          repo: data.documents?.[0]?.metadata?.repo,
+        })
       })
       .catch((err) => console.error('Could not load indexed documents:', err))
 
@@ -343,12 +317,8 @@ function App() {
   }, [isManageOpen])
 
   const connectedCount = services.filter((service) => service.status === 'connected').length
-  const totalItems = services
-    .filter((service) => service.status === 'connected')
-    .reduce((sum, service) => sum + (sourceCatalog[service.type]?.itemCount ?? 0), 0)
-  const missingServiceTypes = Object.keys(sourceCatalog).filter(
-    (type) => !services.some((service) => service.type === type),
-  )
+  // Chunks are the retrievable unit, so that is what "indexed" means here.
+  const totalItems = corpusStats.chunks ?? 0
 
   return (
     <div className="app-shell">
@@ -702,14 +672,18 @@ function App() {
                       <span className="service-dot" />
                       {connectedCount} Connected
                     </span>
-                    <span>2m ago Last Sync</span>
+                    <span>
+                      {corpusStats.lastIndexed
+                        ? `Indexed ${new Date(corpusStats.lastIndexed).toLocaleDateString()}`
+                        : 'Not indexed'}
+                    </span>
                   </div>
                 </div>
                 <div className="service-actions">
-                  <button className="connect-btn" type="button">
+                  <span className="connect-note">
                     <img src={linkIcon} alt="" />
-                    Connect New Source
-                  </button>
+                    GitHub is the only connected source
+                  </span>
                   <p className="service-note">
                     <img src={lockIcon} alt="" />
                     Only you can search your connected accounts
@@ -783,30 +757,29 @@ function App() {
                   )
                 })}
 
+                {/*
+                  Roadmap card. Previously a grid of "Add Slack" / "Add Gmail"
+                  buttons that overflowed the card and each fabricated a
+                  connected integration on click. Now a plain list of what is
+                  coming, with no button that promises something untrue.
+                */}
                 <article className="add-card">
-                  <button
-                    className="plus-icon"
-                    onClick={() => {
-                      const next = missingServiceTypes[0]
-                      if (next) addService(next)
-                    }}
-                    type="button"
-                  >
-                    +
-                  </button>
-                  <h3>Add New Source</h3>
-                  <p>Connect Notion, Jira, Linear, and more to expand your knowledge base.</p>
-                  <div className="add-options">
-                    {missingServiceTypes.length === 0 ? (
-                      <span className="add-all-added">All sources added</span>
-                    ) : (
-                      missingServiceTypes.map((type) => (
-                        <button className="add-source-btn" key={type} onClick={() => addService(type)} type="button">
-                          Add {sourceCatalog[type].name}
-                        </button>
-                      ))
-                    )}
+                  <div className="add-card-head">
+                    <span className="plus-icon" aria-hidden="true">+</span>
+                    <div>
+                      <h3>More sources</h3>
+                      <p>Ingestion for these is not built yet.</p>
+                    </div>
                   </div>
+                  <ul className="planned-list">
+                    {plannedSources.map((source) => (
+                      <li className="planned-item" key={source.key}>
+                        <img className="planned-logo" src={source.logo} alt="" />
+                        <span className="planned-name">{source.name}</span>
+                        <span className="planned-note">{source.note}</span>
+                      </li>
+                    ))}
+                  </ul>
                 </article>
               </section>
             </div>

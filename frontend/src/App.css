@@ -812,10 +812,15 @@ a.context-link:hover {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 20px;
+  gap: 28px;
+  flex-wrap: wrap;
   max-width: 960px;
   margin: 0 auto;
   padding: 34px 40px 6px;
+}
+
+.service-header > div:first-child {
+  min-width: 0;
 }
 
 .service-title {
@@ -831,11 +836,59 @@ a.context-link:hover {
   color: var(--text-dim);
 }
 
-.service-actions,
+.service-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+/*
+  Stats were wrapping into a cramped three-column stack ("0 Total / Items"),
+  because the row had no whitespace protection and the icons were unsized.
+*/
 .service-stats {
   display: flex;
   align-items: center;
-  gap: 10px;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin-top: 12px;
+  font-size: 12.5px;
+  color: var(--text-dim);
+}
+
+.service-stats > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.service-stats img {
+  width: 14px;
+  height: 14px;
+  opacity: 0.7;
+}
+
+.connect-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-dim);
+  background: var(--paper);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 7px 13px;
+}
+
+.connect-note img {
+  width: 13px;
+  height: 13px;
+  opacity: 0.7;
 }
 
 .service-grid {
@@ -862,30 +915,110 @@ a.context-link:hover {
 
 .integration-head,
 .integration-head-actions,
-.integration-footer,
-.integration-metrics {
+.integration-footer {
   display: flex;
   align-items: center;
   gap: 10px;
 }
 
 .integration-head {
-  margin-bottom: 12px;
+  margin-bottom: 14px;
 }
 
 .integration-head-actions {
   margin-left: auto;
+  flex: 0 0 auto;
+}
+
+/*
+  These rules were dropped in the theme rewrite, which is what made the card
+  "disproportionately large": an unsized <img> renders at its intrinsic
+  dimensions, and an unstyled <h3> takes the browser default of 1.17em plus
+  margins. Both are constrained explicitly now.
+*/
+.integration-id {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+/* Needed for the subtitle to ellipsis instead of sliding under the badge. */
+.integration-id > div {
+  min-width: 0;
+}
+
+.integration-logo {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  object-fit: contain;
+  background: var(--paper);
+  padding: 5px;
+  flex: 0 0 auto;
+}
+
+.integration-id h3 {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--text);
+}
+
+.integration-id p {
+  margin: 1px 0 0;
+  font-size: 11.5px;
+  color: var(--text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .integration-metrics {
-  gap: 22px;
-  margin: 12px 0;
+  display: flex;
+  gap: 28px;
+  margin: 14px 0;
 }
 
-.integration-id {
-  font-family: var(--font-mono);
-  font-size: 11px;
+.integration-metrics p {
+  margin: 0;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
   color: var(--text-faint);
+}
+
+.integration-metrics strong {
+  display: block;
+  margin-top: 2px;
+  font-family: var(--font-mono);
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.integration-footer {
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+
+.integration-footer button {
+  margin-left: auto;
+}
+
+.integration-footer img,
+.connect-btn img,
+.manage-btn img,
+.cancel-btn img {
+  width: 13px;
+  height: 13px;
+  opacity: 0.7;
+  vertical-align: -2px;
 }
 
 .badge-connected,
@@ -913,12 +1046,26 @@ a.context-link:hover {
   background: #6fbf9a;
 }
 
+/*
+  Sits inside .service-actions, not as a page-level block. The previous rule
+  gave it max-width 960px and auto margins, which fought its flex parent.
+*/
 .service-note {
-  max-width: 960px;
-  margin: 0 auto;
-  padding: 0 40px 40px;
-  font-size: 12.5px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  font-size: 11.5px;
   color: var(--text-faint);
+  white-space: nowrap;
+}
+
+.service-note img {
+  width: 12px;
+  height: 12px;
+  opacity: 0.6;
+  flex: 0 0 auto;
 }
 
 .sync-row,
@@ -939,21 +1086,55 @@ a.context-link:hover {
   color: var(--text-dim);
 }
 
+/*
+  Sync state. The previous rules had .sync-progress as the fill bar, but in the
+  markup it is the outer wrapper -- so it inherited height:100% and a solid
+  accent background, which is what ballooned the card during a sync.
+  .sync-value is the fill.
+*/
+.sync-progress {
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.sync-progress > p {
+  margin: 0 0 10px;
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+
+.sync-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0;
+  font-size: 11.5px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
 .sync-track {
   flex: 1;
+  min-width: 40px;
   height: 5px;
   border-radius: 999px;
   background: var(--border);
   overflow: hidden;
 }
 
-.sync-progress {
+.sync-value {
+  display: block;
   height: 100%;
+  width: 45%;
   background: var(--accent);
   border-radius: 999px;
 }
 
-.sync-value,
+.cancel-btn {
+  padding: 5px 10px;
+  font-size: 11.5px;
+}
+
 .manual-sync-wrap {
   font-family: var(--font-mono);
   font-size: 11.5px;
@@ -1037,30 +1218,99 @@ a.context-link:hover {
   margin-top: 16px;
 }
 
+/*
+  Roadmap card.
+
+  This was a flex ROW containing a button, an h3, a paragraph and a grid of
+  buttons -- so the heading compressed to one word per line, the description
+  became a narrow column, and the buttons overflowed the card's right edge.
+  A column with a wrapping list is the shape the content actually wants.
+*/
 .add-card {
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  background: transparent;
+}
+
+.add-card-head {
+  display: flex;
+  align-items: flex-start;
   gap: 10px;
-  padding: 12px 14px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--paper);
-  font-family: inherit;
-  font-size: 13px;
-  font-weight: 600;
+}
+
+.add-card-head h3 {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 700;
   color: var(--text);
-  cursor: pointer;
-  transition: border-color 0.15s ease, background 0.15s ease;
 }
 
-.add-card:hover {
-  border-color: var(--accent);
-  background: var(--accent-soft-2);
-}
-
-.add-all-added {
-  font-size: 12.5px;
+.add-card-head p {
+  margin: 2px 0 0;
+  font-size: 11.5px;
   color: var(--text-faint);
+}
+
+.plus-icon {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--paper);
+  color: var(--text-faint);
+  font-size: 15px;
+  font-weight: 600;
+  padding: 0;
+  cursor: default;
+}
+
+.planned-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.planned-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 8px;
+  border-radius: var(--radius-sm);
+  min-width: 0;
+}
+
+.planned-logo {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  opacity: 0.55;
+  flex: 0 0 auto;
+}
+
+.planned-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.planned-note {
+  margin-left: auto;
+  font-size: 10.5px;
+  color: var(--text-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ---------- responsive ---------- */
