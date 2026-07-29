@@ -1,5 +1,6 @@
 import os, json
 import boto3
+from botocore.config import Config
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -7,7 +8,22 @@ load_dotenv()
 REGION = os.environ.get("AWS_REGION", "us-east-1")
 MODEL_ID = os.environ["NOVA_EMBED_MODEL_ID"]  # amazon.nova-2-multimodal-embeddings-v1:0
 
-brt = boto3.client("bedrock-runtime", region_name=REGION)
+# Adaptive retries with client-side rate limiting. Indexing a real corpus is
+# thousands of concurrent calls, and embed_many_texts deliberately lets
+# exceptions propagate -- so without this, one transient ThrottlingException
+# forty minutes into a run discards the entire job.
+#
+# Adaptive mode backs off *and* throttles the client when it sees throttling,
+# which suits a long batch better than the default's fixed attempt count.
+brt = boto3.client(
+    "bedrock-runtime",
+    region_name=REGION,
+    config=Config(
+        retries={"max_attempts": 8, "mode": "adaptive"},
+        read_timeout=60,
+        connect_timeout=15,
+    ),
+)
 
 def embed_one(
     text: str,
