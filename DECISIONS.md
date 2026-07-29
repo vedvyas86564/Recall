@@ -124,3 +124,28 @@ Twice the volume of anything else, and a packaging/tooling project generates exa
 **What is lost.** The dogfooding narrative. "We indexed the building of this product" was the strongest version of the story and it is not available.
 
 **Consequence for D7.** Reversed. GitHub is no longer deferred; it is the only source. The two GitHub acceptance criteria D7 struck are back in force, and the Slack-specific ones are out. Slack ingestion code stays — it is tested and correct, and returns when workspace access does.
+
+---
+
+## D9 — Relevance threshold set to 0.50 from measurement, and held provisional
+
+**Decision.** (2026-07-28) `RELEVANCE_THRESHOLD` defaults to **0.50**, replacing the placeholder 0.35.
+
+**What the measurement showed.** Against the first 8 uv threads (711 chunks), five in-corpus and five deliberately off-topic questions:
+
+| | range | mean |
+|---|---|---|
+| relevant | 0.5145 – 0.6646 | 0.590 |
+| irrelevant | 0.3783 – 0.4880 | 0.431 |
+
+The bands separate by **0.0265**. A threshold exists, but it sits in a narrow gap rather than a comfortable valley. At 0.50 all ten questions classify correctly.
+
+**Why the placeholder was actively dangerous.** At 0.35 nothing ever abstained. "How do I make a sourdough starter?" scored **0.488** against a Python packaging corpus and would have been answered — the exact trap-4 failure the abstention logic exists to prevent. A threshold that never fires is worse than no threshold, because the abstention path looks implemented and tested while doing nothing.
+
+**Rejected: keeping 0.35 until the golden set exists.** Defensible on process grounds — this is not a proper calibration — but it would mean shipping an abstention feature that provably never triggers. A measured-but-provisional value beats a placeholder known to be wrong.
+
+**Why it is explicitly provisional.** n=5 per band is far too small to trust the edges, and the off-topic questions were chosen to be obviously off-topic. Real users ask *plausible* questions the corpus happens not to cover, which will land much closer to the boundary. Expect the bands to overlap once the golden set is written, at which point no single threshold separates them cleanly and the honest options are a margin-based rule, a reranker, or accepting a measured error rate.
+
+**One caution about the observed scores.** Nova similarities occupy a narrow band — nothing scored below 0.37 even for questions with no lexical or semantic relationship to the corpus. Absolute cosine values here carry less information than the gap between them, so anyone tuning this should look at separation, not at whether a number "looks high."
+
+**How to recalibrate.** Run `evals/run.py --retrieval-only`, then move the threshold and watch `abstention_accuracy` against `false_abstention_rate`. Raising it always improves the first and worsens the second; the useful value balances them.

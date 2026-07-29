@@ -14,10 +14,25 @@ import os
 
 from services.db import get_pool
 
-# Cosine similarity in [0, 1]. 0.35 is a starting point, not a tuned value --
-# it must be calibrated against evals/golden.jsonl (spec section 5) once the
-# real corpus is indexed. Recorded here rather than guessed at each call site.
-RELEVANCE_THRESHOLD = float(os.environ.get("RELEVANCE_THRESHOLD", "0.35"))
+# Cosine similarity in [0, 1].
+#
+# 0.50 is measured, not guessed. Against the first 8 uv threads (711 chunks),
+# 5 in-corpus and 5 clearly-off-topic questions scored:
+#
+#   relevant    0.5145 - 0.6646   (mean 0.590)
+#   irrelevant  0.3783 - 0.4880   (mean 0.431)
+#
+# The bands separate by only 0.0265, so 0.50 sits near the midpoint of a narrow
+# gap rather than in a comfortable valley. The original 0.35 default would have
+# abstained on nothing at all -- "how do I make a sourdough starter?" scored
+# 0.488 against this corpus and sailed through.
+#
+# Treat this as provisional. n=5 per band is far too small to trust the edges,
+# and a real golden set will almost certainly show the bands overlapping, at
+# which point no single threshold separates them cleanly. Recalibrate against
+# evals/golden.jsonl and watch false_abstention_rate alongside abstention
+# accuracy -- raising this always improves one and worsens the other.
+RELEVANCE_THRESHOLD = float(os.environ.get("RELEVANCE_THRESHOLD", "0.50"))
 
 # How many near misses to keep when abstaining, for "closest we had was X".
 NEAR_MISS_LIMIT = 3
