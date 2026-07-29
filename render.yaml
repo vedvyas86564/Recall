@@ -30,15 +30,24 @@ services:
       - key: EMBED_CONCURRENCY
         value: "8"
 
-      # Set to the Vercel URL once it exists, e.g. https://canopy.vercel.app
+      # Empty on first deploy: the Vercel URL does not exist yet. Set it after
+      # the frontend is up. Declared with a value rather than sync:false so the
+      # blueprint does not block on something unknowable at this point.
+      # localhost origins are allowed unconditionally in main.py, so an empty
+      # value here is correct for a backend-only deploy.
       - key: ALLOWED_ORIGINS
-        sync: false
+        value: ""
 
+      # Render generates a strong random value on first deploy. Read it from the
+      # dashboard afterwards and set the frontend's VITE_API_KEY to match --
+      # better than inventing one, and it never sits in a chat or a file.
+      - key: API_KEY
+        generateValue: true
+
+      # The three that genuinely require you: paste in the Render dashboard.
       - key: DATABASE_URL
         sync: false
       - key: AWS_ACCESS_KEY_ID
         sync: false
       - key: AWS_SECRET_ACCESS_KEY
-        sync: false
-      - key: API_KEY
         sync: false
