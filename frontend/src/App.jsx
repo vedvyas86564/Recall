@@ -1,5 +1,5 @@
 import './App.css'
-import recallIcon from './assets/RecallIcon.svg'
+import canopyIcon from './assets/CanopyIcon.svg'
 import githubCardIcon from './assets/GitHubCard.svg'
 import toAskArrowIcon from './assets/ToAskArrow.svg'
 import threadsIcon from './assets/threads.svg'
@@ -354,8 +354,8 @@ function App() {
     <div className="app-shell">
       <aside className="sidebar">
         <div className="brand-row">
-          <img className="brand-icon" src={recallIcon} alt="Recall" />
-          <span>Recall</span>
+          <img className="brand-icon" src={canopyIcon} alt="Canopy" />
+          <span className="brand-name">canopy</span>
         </div>
 
         <nav className="menu-list">
@@ -419,9 +419,9 @@ function App() {
           {page === 'home' ? (
             <>
               <div className="content-inner">
-                <h1>Search across your universe.</h1>
+                <h1>What do you want to know?</h1>
                 <p className="subhead">
-                  Connect your engineering context. Ask complex questions. Get cited answers instantly.
+                  Search
                 </p>
 
                 <section className="search-shell">

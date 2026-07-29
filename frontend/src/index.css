@@ -1,17 +1,40 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
 
 /*
-  Cosmic theme ported from the Recall-ben branch.
+  Canopy design system.
 
-  Only the presentation layer came across. That branch's pages are driven
-  entirely by a 769-line fixture file and its API client is dead code pointing
-  at endpoints that do not exist, so none of its data layer was taken -- see
-  DECISIONS.md D10.
-
-  The layered gradient replaces a flat #03060d. Surfaces above it are
-  translucent, so the background reads through the whole shell rather than
-  being hidden behind opaque panels.
+  Light paper theme with a deep teal accent, replacing the cosmic dark theme
+  ported from Recall-ben. Tokens and type scale follow the reference mockup in
+  Downloads/canopyui.txt; layout classes stay as they are so the React tree is
+  untouched -- see DECISIONS.md D13.
 */
+
+:root {
+  --bg: #faf9f6;
+  --bg-raised: #ffffff;
+  --paper: #f3f1ec;
+
+  --accent: #1f6f63;
+  --accent-soft: #dceee8;
+  --accent-soft-2: #eaf3ef;
+
+  --text: #21231f;
+  --text-dim: #6b6e68;
+  --text-faint: #9a9d95;
+
+  --border: #e7e4dc;
+  --amber: #e8b75e;
+  --amber-soft: #fbf0da;
+
+  --radius: 14px;
+  --radius-sm: 9px;
+  --shadow: 0 1px 2px rgba(20, 20, 15, 0.04), 0 6px 20px rgba(20, 20, 15, 0.05);
+  --shadow-lg: 0 10px 40px rgba(20, 20, 15, 0.14);
+
+  --font-sans: 'Manrope', sans-serif;
+  --font-ui: 'Inter', sans-serif;
+  --font-mono: 'IBM Plex Mono', monospace;
+}
 
 html,
 body,
@@ -22,42 +45,28 @@ body,
 
 body {
   margin: 0;
-  font-family: 'Inter', sans-serif;
-  color: rgba(255, 255, 255, 0.95);
-  background-color: #0a0518;
-  background-image:
-    /* top sky glow */
-    radial-gradient(ellipse 140% 55% at 50% -5%, rgba(168, 85, 247, 0.3), transparent 55%),
-    /* pink cloud, right */
-    radial-gradient(ellipse 50% 35% at 85% 12%, rgba(236, 72, 153, 0.18), transparent 50%),
-    /* pink cloud, left */
-    radial-gradient(ellipse 45% 28% at 12% 8%, rgba(219, 39, 119, 0.12), transparent 50%),
-    /* central violet atmosphere */
-    radial-gradient(ellipse 90% 70% at 50% 45%, rgba(109, 40, 217, 0.12), transparent 60%),
-    /* blue accent, bottom-left */
-    radial-gradient(ellipse 40% 30% at 15% 85%, rgba(59, 130, 246, 0.1), transparent 50%),
-    /* purple accent, bottom-right */
-    radial-gradient(ellipse 35% 25% at 85% 90%, rgba(139, 92, 246, 0.08), transparent 50%),
-    /* horizon band */
-    linear-gradient(to top, rgba(8, 4, 20, 1) 0%, rgba(10, 5, 24, 0.95) 6%, rgba(15, 8, 30, 0.6) 18%, transparent 38%),
-    /* overall sky */
-    linear-gradient(175deg, #1f0a3a 0%, #180832 25%, #120625 55%, #0d0420 78%, #0a0518 100%);
-  background-attachment: fixed;
+  font-family: var(--font-sans);
+  background: var(--bg);
+  color: var(--text);
   -webkit-font-smoothing: antialiased;
 }
 
+::selection {
+  background: var(--accent-soft);
+}
+
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 3px;
+  background: rgba(20, 20, 15, 0.12);
+  border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.18);
+  background: rgba(20, 20, 15, 0.2);
 }
 
 ::-webkit-scrollbar-track {

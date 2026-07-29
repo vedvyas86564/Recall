@@ -209,3 +209,25 @@ Adopting it means adopting a mock application and rewiring every page — larger
 **Rejected: leaving 0.50 and accepting the misses.** It was chosen before a corpus existed, from ten hand-picked questions. Keeping it over 39 real ones would be preferring a guess to a measurement.
 
 **Caveat that remains.** Citation precision is still unmeasured — the retrieval-only pass skips generation. It needs a full run, which costs one Nova Lite call per question.
+
+---
+
+## D13 — Canopy visual identity: tokens adopted, markup not
+
+**Decision.** (2026-07-29) Rebuilt the theme to the Canopy reference mockup — light paper background, deep teal accent, Manrope/Inter/IBM Plex Mono — and renamed the product in the UI from Recall to canopy.
+
+**How it was applied.** `index.css` carries the reference's design tokens verbatim. `App.css` was rewritten against **the class names our React tree already uses**, so `App.jsx` needed no restructuring beyond the brand string and two lines of copy.
+
+**Rejected: porting the reference's markup and class vocabulary.** It is a static HTML mockup with its own structure (`.answer-view`, `.chat-hit`, `.member-card`, `.specs-layout`) built around views we do not have — Members, Specs, History. Adopting it would mean either rebuilding those pages against no backend, or shipping empty shells: the same mock-application trap as Recall-ben, in a different coat of paint. Taking tokens and type scale gets the visual identity at a fraction of the risk.
+
+**What was deliberately not renamed.** The nav still reads Threads / Knowledge Base / Projects / Source Management rather than the reference's Home / History / Specs / Members. Those labels correspond to pages that exist. Renaming them to Specs and Members would advertise features we have not built — spec rule 4 again, and the same reason the fake Slack/Gmail/Meetings cards came out.
+
+**Repository naming.** The directory and git remote are still `Recall`. Renaming a repo mid-branch invites broken remotes and stale clones for no functional gain; the user-facing product is Canopy, and that is what the UI says.
+
+---
+
+## D14 — Retrieval sidebar shows real numbers, and stays
+
+**Decision.** (2026-07-29) The answer view keeps the retrieval panel — top match, threshold, chunks retrieved, chunks cited — rather than hiding it behind a debug flag.
+
+**Why it earns its place in a demo.** It makes the abstention story legible. When Canopy refuses, the panel shows *why*: 0.436 against a 0.44 threshold, ten chunks retrieved, none good enough. Without it a refusal looks like a failure; with it, a deliberate one. That contrast is the strongest thing the product has to show, and the numbers are what make it credible rather than a claim.
