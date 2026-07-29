@@ -53,14 +53,21 @@ async def lifespan(app):
 
 app = FastAPI(title="Recall API", lifespan=lifespan)
 
+# Deployed origins come from the environment; localhost stays for development.
+# Comma-separated, e.g. ALLOWED_ORIGINS=https://canopy.vercel.app
+LOCAL_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:3000",
+    "http://localhost:5175",
+]
+ALLOWED_ORIGINS = LOCAL_ORIGINS + [
+    o.strip() for o in os.environ.get("ALLOWED_ORIGINS", "").split(",") if o.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:3000",
-        "http://localhost:5175",
-    ],
+    allow_origins=ALLOWED_ORIGINS,
     allow_methods=["*"],
     allow_headers=["*"],
 )

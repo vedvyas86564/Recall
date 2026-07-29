@@ -231,3 +231,33 @@ Adopting it means adopting a mock application and rewiring every page — larger
 **Decision.** (2026-07-29) The answer view keeps the retrieval panel — top match, threshold, chunks retrieved, chunks cited — rather than hiding it behind a debug flag.
 
 **Why it earns its place in a demo.** It makes the abstention story legible. When Canopy refuses, the panel shows *why*: 0.436 against a 0.44 threshold, ten chunks retrieved, none good enough. Without it a refusal looks like a failure; with it, a deliberate one. That contrast is the strongest thing the product has to show, and the numbers are what make it credible rather than a claim.
+
+---
+
+## D15 — Frontend on Vercel, backend elsewhere
+
+**Decision.** (2026-07-29) The Vite frontend deploys to Vercel. The FastAPI backend does not; it ships as a container to Render (blueprint in `render.yaml`, `backend/Dockerfile`).
+
+**Why the backend cannot go on Vercel.** Three independent blockers, any one of which is disqualifying:
+
+1. **Function duration.** `/query` takes 5–10s in practice — one embedding call, retrieval, one Nova Lite call. Vercel Hobby caps functions at 10s, Pro at 60s. The happy path sits on top of the Hobby ceiling.
+2. **Connection pooling.** We hold an asyncpg pool against Supabase's *session* pooler, chosen because asyncpg needs prepared statements. Serverless wants the *transaction* pooler, which rejects them — the same incompatibility documented in `.env.example`. A serverless deploy would have to abandon asyncpg or abandon pooling.
+3. **Cold starts.** `import boto3` is not free, and a serverless invocation pays it on every cold start. A long-running process pays it once.
+
+**Rejected: rewriting the backend for serverless.** Achievable — swap asyncpg for a HTTP-based Postgres client, restructure to fit the timeout — but it is a rewrite of the data layer to satisfy a hosting choice, days before a demo, against a service that hosts containers perfectly well.
+
+**Consequence.** Two deploy targets rather than one. `ALLOWED_ORIGINS` is now read from the environment so the backend can accept the Vercel domain without a code change.
+
+---
+
+## D16 — The demo path is live, not scripted
+
+**Decision.** (2026-07-29) No hardcoded demo. `DEMO.md` is a curated script over the **live** system: every question in it has been run against the real index, with its measured score recorded.
+
+**Rejected: hardcoding a demo path.** It was offered as a fallback if no compelling path existed. One does exist, and hardcoding would cost more than it saves:
+
+- It breaks the moment anyone asks a different question, and investors always do. A scripted demo that fails a follow-up is far worse than a live one that occasionally abstains — the first looks like a lie, the second looks like a limitation.
+- The strongest asset here is that the corpus is **public**. An investor can open the cited GitHub thread and verify the answer themselves. That is a proof a hardcoded demo cannot offer, and it is worth more than a smoother script.
+- It contradicts spec rule 4, which the whole build has been held to. Reintroducing fixtures at the last step would invalidate the one thing the eval numbers actually certify.
+
+**What replaced it.** Curation, not fabrication: questions selected by measured score from the eval run, with the single known false abstention documented and a scripted response for it. Naming a limitation with a number attached reads as competence; being surprised by it does not.
