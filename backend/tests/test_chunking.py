@@ -11,7 +11,7 @@ import uuid
 import pytest
 
 from services import citations
-from services.chunking import chunk_slack_thread, chunk_document
+from services.chunking import chunk_slack_thread, chunk_document, chunk_thread
 from services.citations import slack_permalink, github_blob_url
 
 
@@ -169,3 +169,51 @@ def test_github_blob_url_single_line():
 ])
 def test_github_url_refuses_incomplete_input(repo, ref, path):
     assert github_blob_url(repo, ref, path) is None
+
+
+# --- Oversized messages must not exceed the embedding API's input limit -------
+
+def test_oversized_message_is_split_not_emitted_whole():
+    """
+    A real uv issue body of 87,687 characters was emitted as one chunk and
+    rejected by Bedrock, which caps input at 50,000. "Messages are atomic" is
+    the right rule for boundaries but must still be bounded.
+    """
+    doc = make_thread(1, text_len=90_000)
+    chunks = chunk_slack_thread(doc)
+    assert len(chunks) > 1
+    for c in chunks:
+        assert len(c["text"]) <= 50_000
+
+
+@pytest.mark.parametrize("size", [7_000, 20_000, 90_000, 200_000])
+def test_no_chunk_ever_exceeds_the_api_limit(size):
+    for c in chunk_slack_thread(make_thread(3, text_len=size)):
+        assert len(c["text"]) <= 50_000
+
+
+def test_split_parts_keep_their_citation_anchor():
+    """Every fragment must still point at the comment it came from."""
+    doc = make_thread(1, text_len=30_000)
+    doc["messages"][0]["url"] = "https://github.com/o/r/issues/7#issuecomment-1"
+    doc["source"] = "github_issue"
+    doc["repo"], doc["issue_number"] = "o/r", 7
+    chunks = chunk_thread(doc)
+    assert len(chunks) > 1
+    assert all(c["metadata"]["url"].endswith("#issuecomment-1") for c in chunks)
+
+
+def test_splitting_prefers_paragraph_boundaries():
+    body = "\n\n".join(f"paragraph {i} " + "y" * 500 for i in range(40))
+    doc = make_thread(1)
+    doc["messages"][0].update(text=body, line=f"2023-11-14 14:00:00 Ved: {body}")
+    chunks = chunk_slack_thread(doc)
+    assert len(chunks) > 1
+    # A paragraph-aligned split leaves no fragment starting mid-word.
+    assert not any(c["text"].lstrip().startswith("y") for c in chunks)
+
+
+def test_short_messages_are_untouched_by_the_splitter():
+    from services.chunking import _split_long_message
+    msg = make_thread(1, text_len=50)["messages"][0]
+    assert _split_long_message(msg) == [msg]

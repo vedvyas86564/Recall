@@ -186,6 +186,7 @@ async def query(req: QueryRequest, request: Request):
         "decisions": decisions,
         "sources": sources,
         "top_score": top_score,
+        "threshold": RELEVANCE_THRESHOLD,
         # Diagnostic: how much of what we retrieved was actually used. A large
         # gap is a signal that retrieval is returning noise.
         "retrieved_count": len(top),

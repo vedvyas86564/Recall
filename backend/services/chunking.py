@@ -24,6 +24,24 @@ MAX_CHARS = 1600
 # repeated into the next chunk preserves the question a reply is answering.
 OVERLAP_MESSAGES = 1
 
+# Hard ceiling on a single message before it is split internally.
+#
+# "Messages are atomic" is the right rule for chunk *boundaries* -- it is what
+# keeps a question with its reply. But taken literally it is unbounded, and a
+# real uv issue body of 87,687 characters (a pasted build log) was emitted as
+# one chunk and rejected by Bedrock, which caps input at 50,000.
+#
+# Splitting inside one long message is a different act from splitting between a
+# question and its answer. Trap 3 is about the latter. A message this size is a
+# document in its own right, and it needs internal structure for retrieval
+# quality regardless of the API limit: one 1024-dimension vector cannot
+# meaningfully represent 87k characters, so an unsplit giant is close to
+# unretrievable anyway.
+#
+# Set well below the API ceiling because the limit is on the request payload and
+# multi-byte characters cost more than one character each.
+OVERSIZE_MESSAGE_CHARS = 6000
+
 
 def _slack_chunk_metadata(doc, anchor, current):
     channel_id = doc.get("channel_id", "")
@@ -61,6 +79,55 @@ _METADATA_BUILDERS = {
 }
 
 
+def _split_long_message(msg, limit=OVERSIZE_MESSAGE_CHARS):
+    """
+    Split one oversized message into parts at paragraph, then line, boundaries.
+
+    Each part keeps the original ts, author, and url, so a citation still points
+    at the right comment. Only the text differs. Parts after the first drop the
+    "timestamp author:" prefix, which belongs to the message rather than to each
+    fragment of it.
+    """
+    if len(msg["line"]) <= limit:
+        return [msg]
+
+    text = msg["text"]
+    parts = []
+    current = ""
+
+    # Paragraphs first; fall back to lines for prose with no blank lines, and to
+    # a hard cut only for something like a single enormous minified blob.
+    for para in text.split("\n\n"):
+        candidate = f"{current}\n\n{para}" if current else para
+        if len(candidate) <= limit:
+            current = candidate
+            continue
+        if current:
+            parts.append(current)
+            current = ""
+        while len(para) > limit:
+            cut = para.rfind("\n", 0, limit)
+            if cut <= 0:
+                cut = limit
+            parts.append(para[:cut])
+            para = para[cut:].lstrip("\n")
+        current = para
+    if current:
+        parts.append(current)
+
+    out = []
+    for i, part in enumerate(parts):
+        prefix = f"{msg['ts_display']} {msg['author']}: " if i == 0 else ""
+        out.append({
+            **msg,
+            "text": part,
+            "line": f"{prefix}{part}",
+            "part": i,
+            "part_count": len(parts),
+        })
+    return out
+
+
 def chunk_thread(doc, max_chars=MAX_CHARS, overlap_messages=OVERLAP_MESSAGES):
     """
     Pack whole messages into chunks up to max_chars.
@@ -73,9 +140,13 @@ def chunk_thread(doc, max_chars=MAX_CHARS, overlap_messages=OVERLAP_MESSAGES):
     message, so a citation points at the part of the thread the text actually
     came from rather than at the thread generally.
     """
-    messages = doc.get("messages") or []
-    if not messages:
+    raw_messages = doc.get("messages") or []
+    if not raw_messages:
         return []
+
+    # Bound each message before packing, so no single chunk can exceed the
+    # embedding API's input limit no matter how long one comment is.
+    messages = [part for m in raw_messages for part in _split_long_message(m)]
 
     build_metadata = _METADATA_BUILDERS.get(doc.get("source"), _slack_chunk_metadata)
 
