@@ -8,22 +8,42 @@ load_dotenv()
 REGION = os.environ.get("AWS_REGION", "us-east-1")
 MODEL_ID = os.environ["NOVA_EMBED_MODEL_ID"]  # amazon.nova-2-multimodal-embeddings-v1:0
 
-# Adaptive retries with client-side rate limiting. Indexing a real corpus is
-# thousands of concurrent calls, and embed_many_texts deliberately lets
-# exceptions propagate -- so without this, one transient ThrottlingException
-# forty minutes into a run discards the entire job.
-#
-# Adaptive mode backs off *and* throttles the client when it sees throttling,
-# which suits a long batch better than the default's fixed attempt count.
-brt = boto3.client(
-    "bedrock-runtime",
-    region_name=REGION,
-    config=Config(
-        retries={"max_attempts": 8, "mode": "adaptive"},
-        read_timeout=60,
-        connect_timeout=15,
-    ),
-)
+_client = None
+
+
+def _bedrock():
+    """
+    Build the Bedrock client on first use, not at import.
+
+    Constructing it at module scope meant every importer paid for credential
+    resolution -- including pytest merely *collecting* a test file that
+    transitively imports this module. On a machine where that resolution is slow
+    it broke collection outright with a connect timeout, failing tests that never
+    intended to touch AWS.
+
+    Adaptive retries with client-side rate limiting: indexing a real corpus is
+    thousands of concurrent calls, and embed_many_texts deliberately lets
+    exceptions propagate, so one transient ThrottlingException forty minutes into
+    a run would otherwise discard the whole job. Adaptive mode backs off *and*
+    throttles the client, which suits a long batch better than a fixed attempt
+    count.
+
+    Timeouts are generous and configurable. An earlier 15s connect timeout was
+    right for production and wrong for a slow local environment, where it turned
+    a delay into a hard failure.
+    """
+    global _client
+    if _client is None:
+        _client = boto3.client(
+            "bedrock-runtime",
+            region_name=REGION,
+            config=Config(
+                retries={"max_attempts": 8, "mode": "adaptive"},
+                read_timeout=int(os.environ.get("BEDROCK_READ_TIMEOUT", "60")),
+                connect_timeout=int(os.environ.get("BEDROCK_CONNECT_TIMEOUT", "60")),
+            ),
+        )
+    return _client
 
 def embed_one(
     text: str,
@@ -51,7 +71,7 @@ def embed_one(
         }
     }
 
-    resp = brt.invoke_model(
+    resp = _bedrock().invoke_model(
         modelId=MODEL_ID,
         body=json.dumps(body).encode("utf-8"),
         accept="application/json",

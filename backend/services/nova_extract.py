@@ -1,5 +1,6 @@
 import os, json, re
 import boto3
+from botocore.config import Config
 from dotenv import load_dotenv
 
 load_dotenv(override=True)
@@ -7,7 +8,27 @@ load_dotenv(override=True)
 REGION = os.environ.get("AWS_REGION", "us-east-1")
 MODEL_ID = os.environ["NOVA_LITE_MODEL_ID"]
 
-brt = boto3.client("bedrock-runtime", region_name=REGION)
+_client = None
+
+
+def _bedrock():
+    """
+    Lazy, for the same reason as services/bedrock_embed: a client built at
+    import time makes every importer pay for credential resolution, including
+    pytest collecting a test file that never calls AWS.
+    """
+    global _client
+    if _client is None:
+        _client = boto3.client(
+            "bedrock-runtime",
+            region_name=REGION,
+            config=Config(
+                retries={"max_attempts": 6, "mode": "adaptive"},
+                read_timeout=int(os.environ.get("BEDROCK_READ_TIMEOUT", "60")),
+                connect_timeout=int(os.environ.get("BEDROCK_CONNECT_TIMEOUT", "60")),
+            ),
+        )
+    return _client
 
 def safe_json_parse(raw: str) -> dict:
     if not raw:
@@ -74,7 +95,7 @@ Rules:
         ]
     }
 
-    resp = brt.invoke_model(
+    resp = _bedrock().invoke_model(
         modelId=MODEL_ID,
         body=json.dumps(body).encode("utf-8"),
         accept="application/json",
