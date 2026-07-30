@@ -4,7 +4,7 @@ Roughly 5 minutes of talking, leaving room for questions. Every question here
 has been run against the live deployment; the scores in brackets are measured,
 not estimated.
 
-**Live URL:** https://canopy-cyan-chi.vercel.app
+**Live URL:** https://canopy-ai-b2b.vercel.app
 **Backend:** https://canopy-api-4iem.onrender.com
 
 Stage directions are in `[brackets]`. Everything else is meant to be said out
