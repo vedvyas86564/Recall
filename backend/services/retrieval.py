@@ -61,6 +61,18 @@ async def retrieve_top_k(
     for r in rows:
         chunk_meta = json.loads(r["chunk_metadata"]) if isinstance(r["chunk_metadata"], str) else (r["chunk_metadata"] or {})
         doc_meta = json.loads(r["doc_metadata"]) if isinstance(r["doc_metadata"], str) else (r["doc_metadata"] or {})
+        # Chunk metadata wins on collision, which is right for citations -- a
+        # citation should point at the chunk's own ts and authors, not the
+        # thread's. But `message_count` and `start_ts` exist at BOTH levels, so
+        # thread-level values were being shadowed and were unreachable.
+        #
+        # Ramp-up ordering needs the thread's totals (a 157-message thread is
+        # foundational; the 3-message chunk retrieved from it is not), so they
+        # are exposed under distinct keys rather than by changing merge order.
+        merged = {**doc_meta, **chunk_meta}
+        merged["thread_message_count"] = doc_meta.get("message_count")
+        merged["thread_start_ts"] = doc_meta.get("start_ts")
+
         results.append({
             "chunk_id": str(r["chunk_id"]),
             "document_id": str(r["document_id"]),
@@ -68,7 +80,7 @@ async def retrieve_top_k(
             "text": r["text"],
             "score": float(r["score"]),
             "channel": chunk_meta.get("channel", ""),
-            "metadata": {**doc_meta, **chunk_meta},
+            "metadata": merged,
             "doc_title": r["doc_title"],
             "source": r["source"],
         })

@@ -284,3 +284,33 @@ Adopting it means adopting a mock application and rewiring every page — larger
 **Acceptance criteria, honestly.** Spec §1 lists seven. Four are met, two are unmeetable given a single-source corpus (the Slack-only criterion and the both-sources criterion, both struck by D8), and one is redefined by D3 — there is no per-user ACL, because there is no private content to protect. Criterion 2 is met in intent but not in letter: citations are issue-comment permalinks rather than blob URLs with line anchors, because the corpus is discussions rather than code.
 
 **What remains open and should not be described as done:** per-user permissions (Phase 1.5, with OAuth), Slack ingestion beyond the tested parser, and any claim that the system is permission-aware.
+
+---
+
+## D18 — Phase 2 ramp-up ordering is signal-based, not graph-based
+
+**Decision.** (2026-07-30) Reading lists are ordered by a transparent weighted formula over three signals — references (0.45), chronology (0.35), discussion volume (0.20) — with relevance used only for inclusion and tie-breaking.
+
+**Why not the graph the spec suggests.** Spec §3 leads with dependency signals: PR references, import graphs. Measured against the corpus, that graph cannot carry an ordering:
+
+| | |
+|---|---|
+| threads | 100 |
+| cross-reference edges within corpus | 19 |
+| threads with in-degree ≥ 1 | 16 |
+| highest in-degree | 4 (#1495) |
+
+**84 of 100 threads have in-degree zero**, so a graph-based ranker returns a flat pile for almost any query. The sparsity is an artefact of sampling the top 100 threads by comment count — the issues they reference mostly fall outside the sample, so edges point nowhere. References are still used where they exist, since they are the strongest evidence available; they simply cannot be the only signal.
+
+**Rejected: letting a model sequence the retrieved set.** Likely a better ordering, since it reads content rather than metadata. Rejected because the ordering stops being defensible — you cannot say why item 3 outranks item 4 — and explainability is the property this project has optimised for throughout. Also one extra model call per request.
+
+**Rejected: densifying the graph first.** Ingesting the ~100–200 referenced-but-unindexed issues would make true dependency ordering viable. Deferred rather than dismissed: it is an hour of ingest and Bedrock spend before any Phase 2 feature exists, and it is the obvious next move once the crude version proves the shape is right.
+
+**Two bugs found while wiring it up**, both worth recording because both were invisible in the output until inspected:
+
+1. **Ordering signals were reading chunk-level metadata.** A 157-message thread reported 3 messages, because `message_count` and `start_ts` exist at both chunk and document level and the chunk value shadows the document value in `retrieve_top_k`'s merge. Thread totals are now exposed as `thread_message_count` / `thread_start_ts` rather than by changing merge order, which citations depend on.
+2. **A pasted ticket returned only itself.** Resolving `#3957` retrieved 20 chunks all belonging to `#3957`, since a long thread contributes many chunks. Fixed by over-retrieving (k = limit × 12) and dropping the source thread from its own path — someone who pasted a ticket already has it.
+
+**Known weakness, not yet fixed.** Widening k to get thread diversity also admits weakly-related threads. A relevance floor at the abstention threshold (0.44) removes the worst of it — a thread not good enough to answer from is not good enough to assign as reading — but ticket-resolved paths remain thin: `#3957` yields six threads at ~0.45 relevance with no strong topical link. That is arguably the honest answer for a 100-thread sample with no topically adjacent material, rather than a ranking bug.
+
+**What would settle it:** a golden ramp-up set, the way `evals/golden.jsonl` settled the relevance threshold. Phase 1's lesson was that the threshold I chose by intuition was wrong by 27 percentage points and only measurement caught it. The same applies to these weights, and they should not be tuned further without it.
