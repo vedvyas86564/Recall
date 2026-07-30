@@ -65,13 +65,6 @@ ALLOWED_ORIGINS = LOCAL_ORIGINS + [
     o.strip() for o in os.environ.get("ALLOWED_ORIGINS", "").split(",") if o.strip()
 ]
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
 OPEN_PATHS = {"/", "/health", "/docs", "/openapi.json", "/redoc"}
 
 
@@ -99,6 +92,27 @@ async def auth_middleware(request: Request, call_next):
         )
 
     return await call_next(request)
+
+
+# CORS is registered AFTER auth_middleware, and the ordering is load-bearing.
+#
+# Starlette's add_middleware inserts at the OUTERMOST position, so the last
+# middleware registered runs first. Registering CORS first put auth outside it,
+# which meant auth's early 401 returns short-circuited before CORS ever ran --
+# so a rejected request came back with no access-control-allow-origin header.
+#
+# The browser cannot read a cross-origin response without that header, so it
+# reported an opaque "Failed to fetch" instead of the 401 that actually
+# happened. The preflight looked fine throughout, because auth passes OPTIONS
+# straight through, which made this hard to spot from the outside.
+#
+# With CORS outermost, every response carries the header, including errors.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ALLOWED_ORIGINS,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 # ---------------------------------------------------------------------------
