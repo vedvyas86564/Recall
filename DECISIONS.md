@@ -261,3 +261,26 @@ Adopting it means adopting a mock application and rewiring every page — larger
 - It contradicts spec rule 4, which the whole build has been held to. Reintroducing fixtures at the last step would invalidate the one thing the eval numbers actually certify.
 
 **What replaced it.** Curation, not fabrication: questions selected by measured score from the eval run, with the single known false abstention documented and a scripted response for it. Naming a limitation with a number attached reads as competence; being surprised by it does not.
+
+---
+
+## D17 — Phase 1 closed with citation precision measured at 91.5%
+
+**Decision.** (2026-07-30) Phase 1 is complete. The final metric gap — citation precision, which the retrieval-only eval could not produce — is now measured by a full run with generation.
+
+**Final numbers**, 39 golden questions over the 100-thread corpus:
+
+| metric | value |
+|---|---|
+| Recall@1 | 87.9% |
+| Recall@3 | 97.0% |
+| Recall@10 | **100%** |
+| **Citation precision** | **91.5%** |
+| Abstention accuracy | **100%** |
+| False abstention rate | 3.0% |
+
+**How to read 91.5%.** It is a *floor*, not a verdict. The metric measures agreement with the golden set's expected sources, and a citation can genuinely support a claim without being one the set anticipated — so the true figure is at least this. What it rules out is the failure that matters: citations drifting away from the evidence the answer actually used.
+
+**Acceptance criteria, honestly.** Spec §1 lists seven. Four are met, two are unmeetable given a single-source corpus (the Slack-only criterion and the both-sources criterion, both struck by D8), and one is redefined by D3 — there is no per-user ACL, because there is no private content to protect. Criterion 2 is met in intent but not in letter: citations are issue-comment permalinks rather than blob URLs with line anchors, because the corpus is discussions rather than code.
+
+**What remains open and should not be described as done:** per-user permissions (Phase 1.5, with OAuth), Slack ingestion beyond the tested parser, and any claim that the system is permission-aware.
