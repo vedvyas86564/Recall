@@ -132,3 +132,12 @@ caught surprised by it does not.
   workspace connection is not built.
 - Do not quote citation precision. It is still unmeasured — the retrieval-only
   eval skips generation. Quote Recall@10 and abstention accuracy, which are real.
+
+---
+
+## Word-for-word version
+
+`DEMO_SCRIPT.md` has the same structure written as lines to say out loud, with
+on-screen actions, timings, prepared answers to the likely questions, and what
+to do when something breaks. Use this file to understand the shape; use that one
+the night before.
