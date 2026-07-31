@@ -54,3 +54,29 @@
 {"q": "What is our SLA for tier one customer support tickets?", "expect_sources": [], "answerable": false}
 {"q": "When and where is the next company offsite?", "expect_sources": [], "answerable": false}
 {"q": "Which vendor do we use for payroll and benefits administration?", "expect_sources": [], "answerable": false}
+
+// --- Added 2026-07-31, written against the threads D19 ingested. -------
+{"q": "Why did upgrading Python with Homebrew break existing virtual environments?", "expect_sources": ["github:astral-sh/uv:8433"], "answerable": true}
+{"q": "What does uv use instead of canonicalizing a path to find a virtual environment's base interpreter?", "expect_sources": ["github:astral-sh/uv:8481", "github:astral-sh/uv:8433"], "answerable": true}
+{"q": "Why can `uv python find` locate a Python on NixOS that `uv venv` then refuses to use?", "expect_sources": ["github:astral-sh/uv:10711"], "answerable": true, "thread_reply": true}
+{"q": "Which uv release stopped recognising nixpkgs Pythons built with python3.withPackages?", "expect_sources": ["github:astral-sh/uv:11529"], "answerable": true}
+{"q": "Why does uv pip install ignore packages already available through --system-site-packages?", "expect_sources": ["github:astral-sh/uv:4466"], "answerable": true, "thread_reply": true}
+{"q": "How can uv pip install target a Python environment that does not contain uv itself?", "expect_sources": ["github:astral-sh/uv:1396"], "answerable": true}
+{"q": "Why was UV_PROJECT_ENVIRONMENT exposed only as an environment variable?", "expect_sources": ["github:astral-sh/uv:6834"], "answerable": true}
+{"q": "Why did people want uv sync to install into a virtual environment outside the project directory?", "expect_sources": ["github:astral-sh/uv:5229"], "answerable": true, "thread_reply": true}
+{"q": "How was --target implemented for sync and install?", "expect_sources": ["github:astral-sh/uv:3257"], "answerable": true}
+{"q": "In what order does uv look for system-level configuration files?", "expect_sources": ["github:astral-sh/uv:7851"], "answerable": true, "thread_reply": true}
+{"q": "What security risk was raised about the way --extra-index-url chooses between indexes?", "expect_sources": ["github:astral-sh/uv:1377"], "answerable": true, "thread_reply": true}
+{"q": "What makes uv backtrack through many versions of the wrong package?", "expect_sources": ["github:astral-sh/uv:8157"], "answerable": true}
+{"q": "Why can't --exclude-newer be used with dependencies hosted on Azure or GitLab?", "expect_sources": ["github:astral-sh/uv:16813"], "answerable": true}
+{"q": "How do you disable exclude-newer for one specific package?", "expect_sources": ["github:astral-sh/uv:16813"], "answerable": true, "thread_reply": true}
+{"q": "Why doesn't a newly published package show up in uv straight away?", "expect_sources": ["github:astral-sh/uv:505"], "answerable": true}
+{"q": "Were cross-platform lock files planned for the uv pip interface?", "expect_sources": ["github:astral-sh/uv:3347"], "answerable": true}
+{"q": "Why were named dependency groups held back from the first stable release?", "expect_sources": ["github:astral-sh/uv:5632"], "answerable": true, "thread_reply": true}
+{"q": "Is there a way to record installed uv tools in a file that can be committed to git?", "expect_sources": ["github:astral-sh/uv:12533"], "answerable": true, "thread_reply": true}
+{"q": "Why wasn't the pipx-style global tool command named uv run?", "expect_sources": ["github:astral-sh/uv:1173"], "answerable": true, "thread_reply": true}
+{"q": "What extra executables does `uv python install --default` create?", "expect_sources": ["github:astral-sh/uv:8650"], "answerable": true}
+{"q": "Why do uv cache files end up unwritable when the cache is shared between users?", "expect_sources": ["github:astral-sh/uv:5496"], "answerable": true, "thread_reply": true}
+{"q": "Which cloud provider hosts our staging environment?", "expect_sources": [], "answerable": false}
+{"q": "What is the notice period in our standard employment contract?", "expect_sources": [], "answerable": false}
+{"q": "Who owns the runbook for a failed production deploy?", "expect_sources": [], "answerable": false}

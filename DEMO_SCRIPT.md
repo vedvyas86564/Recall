@@ -139,34 +139,48 @@ speaking. Let them read it.]`
 
 > "That's a claim, so we measure it rather than asserting it.
 >
-> We wrote thirty-nine evaluation questions by reading the corpus — including
-> six that are deliberately unanswerable. Every retrieval change runs against
+> We wrote sixty-three evaluation questions by reading the corpus — including
+> nine that are deliberately unanswerable. Every retrieval change runs against
 > them."
 
 `[Optional: have these numbers on a card or a slide. Don't make them squint.]`
 
 | | |
 |---|---|
-| Recall@10 | **100%** |
-| Recall@1 | **90.9%** |
+| Recall@10 | **98.1%** |
+| Recall@1 | 70.4% |
 | Correct refusals | **100%** |
-| Wrong refusals | 3% |
+| Wrong refusals | **1.9%** |
 
-> "Recall@10 is a hundred percent — for every answerable question, the right
-> source is in the top ten. Correct refusals, a hundred percent. Wrong refusals,
-> three percent."
+> "Correct refusals, a hundred percent — that's the number I care most about.
+> Wrong refusals, under two percent. And for ninety-eight percent of answerable
+> questions the right source is in the top ten."
 
 **Then the honest part. Do not skip this — it does more for you than the numbers:**
 
-> "And the harness has already earned its place. Our first relevance threshold
-> was wrong. It refused twenty-seven percent of questions it could have
-> answered. Retrieval was perfect the whole time — the threshold was throwing
-> good results away. We only found that because the eval caught it. We wouldn't
-> have noticed by clicking around."
+> "Those numbers used to be better, and I want to tell you why they got worse.
+>
+> Recall@10 was a hundred percent. Then we noticed something about how we'd
+> written the questions: we wrote each one while reading the thread it came from.
+> So every question used the thread's own vocabulary, and of course it found the
+> thread.
+>
+> So we rewrote them the way somebody who hasn't read anything would ask. Our
+> perfect score stopped being perfect. Nothing about the system changed — the
+> measurement got honest.
+>
+> Here's the one that stings. Ask 'why doesn't a newly published package show up
+> straight away' and it finds nothing, even though the answer is right there. The
+> thread says 'max-age' and 'stale'. It never says 'newly published'. The person
+> who most needs that answer is exactly the person who doesn't know the word yet.
+>
+> That's the actual onboarding problem, and we only found it because we went
+> looking for ways our own eval was flattering us."
 
-**Why say this:** every technical founder claims rigor. Naming a specific
-mistake your own tooling caught is the only version of that claim that's
-falsifiable, and investors know it.
+**Why say this:** every technical founder claims rigor. Reporting that your
+numbers went *down* because you made your own test harder is the only version of
+that claim nobody can fake. It also sets up hybrid retrieval as the next thing
+you build, with evidence rather than a hunch.
 
 ---
 
@@ -267,14 +281,15 @@ it, name it as the three percent and move on.
   about that is what makes "verify it yourself" land.
 - **Don't say Slack ingestion is done.** The parser exists and is tested; the
   workspace connection is not built.
-- **Citation precision is 87.7%, and quote it as a floor.** It measures
+- **Citation precision is 73.2%, and quote it as a floor.** It measures
   agreement with our golden set, and a citation can genuinely support a claim
   without being one we anticipated.
 - **Don't say "AI-powered."** Everything is. Say what it does.
 - **Don't oversell the corpus size.** Four hundred threads is a demo. If someone
   pushes on scale, talk about pgvector and batched embedding, not about volume
   you don't have.
-- **If asked whether growing the corpus hurt quality, the answer is no and you
-  can show your work.** Recall@1 went *up*, 87.9% to 90.9%. It dipped to 78.8%
-  first, and that turned out to be the eval's answer key being stale rather than
-  retrieval getting worse. Worth telling — it is a better story than the number.
+- **If asked whether growing the corpus hurt quality: no, and don't confuse it
+  with the eval getting harder.** On the question set that existed before the
+  corpus grew, Recall@1 went *up* — 87.9% to 90.9%. The lower numbers on this
+  page come from adding harder questions afterwards, not from the bigger corpus.
+  Two separate changes; keep them separate when you explain them.

@@ -134,3 +134,22 @@ Two rejections from D19 are worth keeping as calibration:
 Refreshing sources does **not** refresh coverage. The questions still probe the
 subject matter of the original corpus; new material is under-sampled until new
 questions are written for it.
+
+## Writing questions for newly indexed material
+
+Same discipline, one step earlier: read the thread, decide what a new contributor
+would want from it, and set `expect_sources` to the thread you read the answer
+in. Do not run retrieval first. Retrieval is the thing under test, and a question
+written from its output is a question it is guaranteed to pass.
+
+**The bias to watch.** Writing a question while reading a thread pulls the
+thread's own vocabulary into it. Ask "why can `uv python find` locate a Python on
+NixOS that `uv venv` refuses to use" and the distinctive tokens — NixOS, the two
+command names — do most of the retrieval work. A new hire would more likely ask
+"why won't uv use the Python I already have installed", which is a much harder
+retrieval problem and the one that actually matters.
+
+So the set skews optimistic by construction, and the fix is to deliberately
+include questions phrased the way someone who has *not* read the thread would
+phrase them. When one of those misses, that is the honest signal — an easy hit on
+a question full of the thread's own jargon proves much less.

@@ -86,17 +86,38 @@ yourself whether it missed something.
 
 ---
 
-## One known bug, if you want to find it
+## Two known bugs, if you want to find them
+
+**It refuses something it could answer.**
 
 > *"How much faster did the Airflow production image get after switching to uv?"*
 
 Scores **0.436** — just under the 0.44 threshold — and refuses, even though the
 answer is genuinely in the corpus. A maintainer states the numbers in a reply.
 
-It's the single wrong refusal out of 39 evaluation questions (3%). The cause is
-structural: a very specific question is narrower than the thread's overall
-topic, so it scores lower than a vague question about the same thread would. A
-reranking step is the fix.
+It's the single wrong refusal across 54 answerable questions (1.9%). The cause is
+structural: a very specific question is narrower than the thread's overall topic,
+so it scores lower than a vague question about the same thread would. A reranking
+step is the fix.
+
+**It can't find an answer you ask for in your own words.**
+
+> *"Why doesn't a newly published package show up in uv straight away?"*
+
+The answer is in the corpus — a thread about overriding the `max-age` response
+header, because PyPI's cache means a version you can see on the website isn't
+visible to your client for ten minutes. Ask it that way and the thread does not
+appear in the top ten at all.
+
+The reason is plain once you look: that thread says "max-age", "stale" and
+"10 min", and never says "newly published", "straight away" or "immediately".
+Embedding search matches how a question is *worded*, and the person who most
+needs the answer is exactly the person who doesn't know the vocabulary yet.
+
+This one is worth more than the first. Every question in the original evaluation
+set was written while reading the thread it came from, so all of them inherited
+the corpus's own words and all of them passed. It only showed up once questions
+were deliberately written the way a newcomer would ask.
 
 ---
 
@@ -137,12 +158,12 @@ all ten would imply evidence that wasn't used.
 
 ## Where the numbers come from
 
-39 evaluation questions written by reading the corpus, six of them deliberately
+63 evaluation questions written by reading the corpus, nine of them deliberately
 unanswerable:
 
 | | |
 |---|---|
-| Correct source in top 10 | 100% |
-| Correct source ranked first | 90.9% |
+| Correct source in top 10 | 98.1% |
+| Correct source ranked first | 70.4% |
 | Correct refusals | 100% |
-| Wrong refusals | 3% |
+| Wrong refusals | 1.9% |

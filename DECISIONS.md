@@ -455,3 +455,47 @@ The questions were written by reading the original 100 threads. They now name 43
 ### Incidental: the test suite runs locally again
 
 Making `import boto3` lazy in `bedrock_embed` and `nova_extract` — the earlier fix made only the *client* lazy, which was half the problem, since importing the SDK is itself the expensive part — took the full suite from dying at collection with `TimeoutError [Errno 60]` after 381s to **174 passing in 232s**.
+
+---
+
+## D21 — Write questions for the new material, and discover the eval was flattering itself
+
+**Decision.** (2026-07-31) Added 24 golden questions written by reading the threads D19 ingested — 21 answerable, 3 unanswerable — taking the set from 39 to 63. Deliberately phrased some of them the way a newcomer would ask rather than the way the thread words things. That choice is what made the exercise worth doing.
+
+**Method.** Read the thread, decide what a new contributor would want from it, set `expect_sources` to the thread the answer was read in. Retrieval was not consulted until every question was written. Coverage went from 43 of 392 threads (11%) to 63 (16%).
+
+### The result, and why it looks like a regression
+
+| | 39 questions | 63 questions |
+|---|---|---|
+| Recall@1 | 90.9% | **70.4%** |
+| Recall@3 | 97.0% | **88.9%** |
+| Recall@5 | 97.0% | **92.6%** |
+| Recall@10 | **100%** | **98.1%** |
+| Citation precision | 87.7% | **73.2%** |
+| Abstention accuracy | 100% | **100%** |
+| False abstention | 3.0% | **1.9%** |
+
+**Nothing about the system changed between these two columns.** The corpus, the retrieval, the threshold and the extractor are identical; only the questions differ. So this is not a regression, it is the previous numbers being revealed as optimistic.
+
+**Recall@10 had been 100% since the harness was built, and that was a property of the questions.** Every question in the original set was written while reading its source thread, so every question inherited that thread's vocabulary — and then reliably retrieved it. That is a real methodological flaw and it survived three rounds of eval work without being noticed, because a perfect score does not look like a bug.
+
+**Abstention held.** All 9 unanswerable questions were refused, including the 3 new ones, which were checked against the corpus before being labelled — candidate negatives touching "test coverage" and "Python 2.7" were dropped because the corpus does discuss them. False abstention improved to 1.9%, though only because the denominator grew; it is still the same single Airflow question.
+
+### The failure worth building on
+
+Two questions missed the top ten entirely. One was mine: `#8433` and `#8481` are a PR *pair* implementing one decision, both mention `_base_executable`, and I listed only the second. Corrected to name both — noting that retrieval surfacing it is the weaker form of evidence, and the justification rests on the content.
+
+The other is real, and it is the most useful thing to come out of this work:
+
+> *"Why doesn't a newly published package show up in uv straight away?"*
+
+The corpus answers it — `#505`, on overriding the `max-age` response header, because PyPI's cache hides a just-published version from clients for ten minutes. The thread contains "max-age", "stale" and "10 min". It contains **none** of "newly published", "straight away" or "immediately". It does not appear in the top ten.
+
+Pure dense retrieval matches how a question is *phrased*, and **the person who most needs an answer is the one who does not yet know the vocabulary it is written in**. That is not a tuning problem; a threshold or a reranker does not fix a thread that was never retrieved. It is the case for hybrid retrieval — lexical signal alongside the embedding — and it is now backed by a reproducible failing question rather than by intuition.
+
+It is also, precisely, the product's own thesis turned on itself. Canopy exists for the person who joined last week; that person asks in their own words, not the corpus's.
+
+**What this costs.** The demo materials now quote 98.1% / 70.4% / 73.2% instead of 100% / 90.9% / 87.7%. Those are the honest numbers, and the story attached to them — *we made our own test harder and reported the drop* — is worth more than the figures it replaced.
+
+**Still owed.** Coverage is 16%, not enough. The questions skew toward threads with clear decisions; bug reports without resolutions are barely represented. And the vocabulary-gap failure has exactly one measured instance — before building hybrid retrieval against it, there should be a handful more, written the same deliberate way.

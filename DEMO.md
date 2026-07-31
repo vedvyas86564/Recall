@@ -39,16 +39,23 @@ That is the enterprise objection, answered before it is raised.
 
 ### 3. Why they should believe it — 40 seconds
 
-> "We do not assert this, we measure it. 39 questions written by reading the
-> corpus, six of them deliberately unanswerable."
+> "We do not assert this, we measure it. 63 questions written by reading the
+> corpus, nine of them deliberately unanswerable."
 
 | metric | value |
 |---|---|
-| Recall@10 | **100%** |
-| Recall@1 | **90.9%** |
+| Recall@10 | **98.1%** |
+| Recall@1 | 70.4% |
 | Abstention accuracy | **100%** |
-| False abstention | 3.0% |
-| Citation precision | 87.7% |
+| False abstention | **1.9%** |
+| Citation precision | 73.2% |
+
+These are lower than the numbers this deck carried a week ago, and the drop is
+the point. The old set scored 100% on Recall@10 — but every question in it had
+been written while reading the thread it came from, so every question used the
+corpus's own words. Rewriting them the way a newcomer would ask took Recall@10
+to 98.1% and Recall@1 from 90.9% to 70.4%. Nothing about the system changed. The
+measurement got honest.
 
 Then the honest part, which buys more credibility than it costs:
 
@@ -102,13 +109,32 @@ well stumble into its shape.
 
 **Do not steer around it silently.** If it comes up:
 
-> "That is our known failure mode. The answer is in there, in a reply, and the
-> question is more specific than the thread's overall topic — so it scores lower
-> than a vaguer question about the same thread. We measure it at 3%, we know
-> which questions it affects, and it is what a reranker fixes next."
+> "That is one of our two known failure modes. The answer is in there, in a
+> reply, and the question is more specific than the thread's overall topic — so
+> it scores lower than a vaguer question about the same thread. We measure it at
+> 1.9%, we know which questions it affects, and it is what a reranker fixes
+> next."
 
-Naming a known limitation with a number attached reads as competence. Being
-caught surprised by it does not.
+## The other one, which is more interesting
+
+> **"Why doesn't a newly published package show up in uv straight away?"**
+
+The corpus answers this — a thread about overriding the `max-age` header — but
+that thread says "max-age" and "stale" and never says "newly published" or
+"straight away", so it does not surface at all.
+
+Worth volunteering rather than hiding, because of how it was found:
+
+> "Every question in our original eval set was written while reading the thread
+> it came from, so every question inherited the corpus's vocabulary and every
+> one passed. We went back and deliberately wrote questions the way someone who
+> hasn't read the threads would ask them — and our perfect Recall@10 stopped
+> being perfect. That gap is the real onboarding problem: the person who most
+> needs the answer is the one who doesn't know the words for it yet. It's the
+> case for hybrid retrieval, and it's on the roadmap."
+
+Naming a known limitation with a number attached reads as competence. Naming one
+your own tooling caught, that you went looking for, reads as better.
 
 ---
 
@@ -131,10 +157,10 @@ caught surprised by it does not.
   about that is what makes the click-to-verify move land.
 - Do not promise Slack ingestion is done. The parser exists and is tested; the
   workspace connection is not built.
-- Citation precision is quotable now (87.7%), but say it is measured against a
-  golden set — a citation can support a claim without being one we listed, so
-  treat it as a floor. Before quoting it in a comparison, note that it only
-  became run-to-run stable once extraction was pinned to temperature 0.
+- Citation precision is 73.2%. Say it is measured against a golden set — a
+  citation can support a claim without being one we listed, so treat it as a
+  floor. If it comes up in a comparison, note that it only became run-to-run
+  stable once extraction was pinned to temperature 0.
 
 ---
 
