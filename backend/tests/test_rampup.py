@@ -68,8 +68,10 @@ def test_references_outweigh_recency():
 
 def test_chronology_orders_when_no_references_exist():
     """
-    The common case for this corpus: 84 of 100 threads have in-degree zero, so
-    chronology has to carry the ordering.
+    Most threads in any real corpus have in-degree zero, so chronology has to
+    carry the ordering whenever references are absent. The exact proportion is
+    deliberately not asserted here -- it is a property of the corpus, it moves
+    with every ingest, and DECISIONS.md is where it belongs.
     """
     threads = [
         thread("c", start_ts=3000.0),
@@ -187,6 +189,43 @@ def test_single_digit_numbers_are_ignored():
 
 def test_self_reference_is_excluded():
     assert extract_references("this is #1495 and relates to #1384", exclude="1495") == {"1384"}
+
+
+# --- Qualified references are scoped to one repo -----------------------------
+#
+# Without scoping, another project's tracker donates issue numbers to this one.
+# Inert while those numbers are unindexed; silent false edges once they are.
+
+def test_foreign_repo_urls_are_excluded_when_repo_is_given():
+    text = "same as https://github.com/pypa/pip/issues/5632 and our #1495"
+    assert extract_references(text, repo="astral-sh/uv") == {"1495"}
+
+
+def test_same_repo_urls_are_kept():
+    text = "see https://github.com/astral-sh/uv/issues/3957"
+    assert extract_references(text, repo="astral-sh/uv") == {"3957"}
+
+
+def test_repo_matching_is_case_insensitive():
+    text = "https://github.com/Astral-SH/UV/issues/3957"
+    assert extract_references(text, repo="astral-sh/uv") == {"3957"}
+
+
+def test_owner_repo_shorthand_is_scoped():
+    """'pypa/pip#5632' must not become this repo's #5632."""
+    text = "duplicate of pypa/pip#5632, fixed by astral-sh/uv#4022"
+    assert extract_references(text, repo="astral-sh/uv") == {"4022"}
+
+
+def test_bare_references_are_attributed_to_the_repo():
+    """A bare '#1234' in a uv thread means uv#1234 -- that is how people write."""
+    assert extract_references("fixed by #1234", repo="astral-sh/uv") == {"1234"}
+
+
+def test_unscoped_extraction_still_accepts_any_repo():
+    """Back-compat: omitting repo keeps the old, wider behaviour."""
+    text = "https://github.com/pypa/pip/issues/5632"
+    assert extract_references(text) == {"5632"}
 
 
 def test_empty_text_is_safe():

@@ -59,15 +59,16 @@ explaining away.
 
 ## Beat 2 · It answers, and shows its work — 75 seconds
 
-> "This is indexed against the uv repository — a hundred real engineering
-> threads. I'll ask it something a new contributor would actually ask."
+> "This is indexed against the uv repository — about four hundred real
+> engineering threads. I'll ask it something a new contributor would actually
+> ask."
 
 `[Type: Why doesn't VSCode pick up the .venv interpreter automatically?]`
 `[Hit Enter. Takes 5–10 seconds.]`
 
 `[While it loads:]`
 
-> "It's embedding the question, searching about three thousand chunks, and
+> "It's embedding the question, searching about four thousand chunks, and
 > pulling the ones that clear a relevance bar."
 
 `[Answer appears. Five decisions. Point at the first one.]`
@@ -145,7 +146,6 @@ speaking. Let them read it.]`
 | | |
 |---|---|
 | Recall@10 | **100%** |
-| Recall@1 | 87.9% |
 | Correct refusals | **100%** |
 | Wrong refusals | 3% |
 
@@ -205,9 +205,9 @@ falsifiable, and investors know it.
 > *Know this answer cold. Somebody will ask it.*
 
 **"What's the corpus size?"**
-> "A hundred threads, about three thousand chunks, on a free-tier Postgres. It's
-> a demo scale, not a scaling claim — the architecture is pgvector, which goes a
-> lot further than this."
+> "Just under four hundred threads, about four thousand chunks, on a free-tier
+> Postgres. It's a demo scale, not a scaling claim — the architecture is
+> pgvector, which goes a lot further than this."
 
 **"Can I try it?"**
 > "Please." `[Hand over the keyboard.]`
@@ -264,9 +264,15 @@ it, name it as the three percent and move on.
   about that is what makes "verify it yourself" land.
 - **Don't say Slack ingestion is done.** The parser exists and is tested; the
   workspace connection is not built.
-- **Don't quote citation precision.** It's genuinely unmeasured — the eval pass
-  we ran skips generation. Quote Recall@10 and refusal accuracy, which are real.
+- **Don't quote citation precision.** It *is* measured now (the full eval runs
+  generation), but it currently reads 77.7% for the same reason Recall@1 does —
+  the golden set predates the larger corpus. Quote Recall@10 and refusal
+  accuracy, which are unaffected.
 - **Don't say "AI-powered."** Everything is. Say what it does.
-- **Don't oversell the corpus size.** A hundred threads is a demo. If someone
+- **Don't oversell the corpus size.** Four hundred threads is a demo. If someone
   pushes on scale, talk about pgvector and batched embedding, not about volume
   you don't have.
+- **Don't quote Recall@1 right now.** It reads 78.8% since the corpus grew, but
+  the golden set still lists only the sources that existed at a hundred threads,
+  so it is scoring correct-but-unlisted answers as misses. Quote Recall@10
+  (100%) and the refusal numbers, which are unaffected. See DECISIONS.md D19.

@@ -3,7 +3,7 @@
 Every question below has been run against the live index. The score in brackets
 is the measured top match, so nothing here is a guess about how it will behave.
 
-**Corpus:** 100 `astral-sh/uv` issue threads — 2,829 chunks, 100% public.
+**Corpus:** 392 `astral-sh/uv` issue threads — 4,149 chunks, 100% public.
 **Threshold:** 0.44, calibrated against a 39-question golden set.
 
 ---
@@ -45,9 +45,13 @@ That is the enterprise objection, answered before it is raised.
 | metric | value |
 |---|---|
 | Recall@10 | **100%** |
-| Recall@1 | 87.9% |
 | Abstention accuracy | **100%** |
 | False abstention | 3.0% |
+
+Recall@1 is deliberately absent. It reads 78.8% against the current 392-thread
+corpus, but the golden set still enumerates only the sources that existed when
+the corpus was 100 threads, so it scores correct-but-unlisted answers as misses.
+Quoting it either way would misrepresent it. See `DECISIONS.md` D19.
 
 Then the honest part, which buys more credibility than it costs:
 
@@ -130,8 +134,10 @@ caught surprised by it does not.
   about that is what makes the click-to-verify move land.
 - Do not promise Slack ingestion is done. The parser exists and is tested; the
   workspace connection is not built.
-- Do not quote citation precision. It is still unmeasured — the retrieval-only
-  eval skips generation. Quote Recall@10 and abstention accuracy, which are real.
+- Do not quote citation precision. It is measured (the full eval runs
+  generation) but currently reads 77.7% for the same reason Recall@1 does — the
+  golden set predates the larger corpus. Quote Recall@10 and abstention
+  accuracy, which are unaffected.
 
 ---
 

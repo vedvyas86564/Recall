@@ -16,7 +16,35 @@ from services.rampup import extract_references
 
 # org_id -> {issue_number: count of other indexed threads referencing it}
 _cache: dict[str, dict[str, int]] = {}
+# org_id -> the corpus fingerprint the cached graph was computed from
+_fingerprints: dict[str, tuple] = {}
 _lock = asyncio.Lock()
+
+
+async def _fingerprint(org_id: str) -> tuple:
+    """
+    A cheap stand-in for "has the corpus changed since we cached the graph?"
+
+    Necessary because invalidate() only clears the cache in the process that
+    calls it. Ingest runs from a script or a one-off container, while the graph
+    is cached inside the long-lived API process -- so an ingest that adds three
+    hundred threads leaves every serving instance ranking against the old graph,
+    silently and indefinitely. Nothing surfaces the staleness: the endpoint keeps
+    returning confident, well-formed, wrong orderings.
+
+    Count plus latest write catches every case ingest can produce, since
+    persist_documents always stamps updated_at on upsert.
+    """
+    pool = await get_pool()
+    row = await pool.fetchrow(
+        """
+        SELECT count(*) AS n, max(updated_at) AS latest
+        FROM documents
+        WHERE org_id = $1::uuid AND metadata->>'issue_number' IS NOT NULL
+        """,
+        org_id,
+    )
+    return (row["n"], row["latest"])
 
 
 async def reference_counts(org_id: str, refresh: bool = False) -> dict[str, int]:
@@ -28,18 +56,25 @@ async def reference_counts(org_id: str, refresh: bool = False) -> dict[str, int]
     it would rank threads by how chatty they are rather than by how much others
     depend on them.
     """
-    if not refresh and org_id in _cache:
+    fingerprint = await _fingerprint(org_id)
+
+    def fresh() -> bool:
+        return org_id in _cache and _fingerprints.get(org_id) == fingerprint
+
+    if not refresh and fresh():
         return _cache[org_id]
 
     async with _lock:
         # Another request may have populated it while we waited.
-        if not refresh and org_id in _cache:
+        if not refresh and fresh():
             return _cache[org_id]
 
         pool = await get_pool()
         rows = await pool.fetch(
             """
-            SELECT metadata->>'issue_number' AS number, raw_text
+            SELECT metadata->>'issue_number' AS number,
+                   metadata->>'repo'         AS repo,
+                   raw_text
             FROM documents
             WHERE org_id = $1::uuid AND metadata->>'issue_number' IS NOT NULL
             """,
@@ -49,18 +84,35 @@ async def reference_counts(org_id: str, refresh: bool = False) -> dict[str, int]
         indexed = {r["number"] for r in rows}
         counts: dict[str, int] = {n: 0 for n in indexed}
 
+        # Each thread's references are scoped to its own repository, so a link to
+        # another project's tracker is not read as a reference to a same-numbered
+        # issue here. Keys stay bare issue numbers because the corpus is one repo
+        # (DECISIONS.md D8); indexing a second repo would need them qualified,
+        # since #1495 would then be ambiguous.
         for row in rows:
-            for target in extract_references(row["raw_text"], exclude=row["number"]):
+            targets = extract_references(
+                row["raw_text"], exclude=row["number"], repo=row["repo"]
+            )
+            for target in targets:
                 if target in indexed:
                     counts[target] += 1
 
         _cache[org_id] = counts
+        _fingerprints[org_id] = fingerprint
         return counts
 
 
 def invalidate(org_id: str | None = None) -> None:
-    """Drop the cache after an ingest, since the graph has changed."""
+    """
+    Drop the cache in *this* process after an ingest.
+
+    Kept for the in-process case, but it is not the safety net -- the fingerprint
+    check in reference_counts is, because it also covers the far more common
+    case where the writer and the reader are different processes.
+    """
     if org_id is None:
         _cache.clear()
+        _fingerprints.clear()
     else:
         _cache.pop(org_id, None)
+        _fingerprints.pop(org_id, None)

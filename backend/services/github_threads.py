@@ -240,6 +240,71 @@ def fetch_issue_threads(
         raise
 
 
+def fetch_issues_by_number(
+    repo: str,
+    numbers,
+    min_messages: int = 2,
+    client: GitHubClient = None,
+    progress=None,
+) -> list[dict]:
+    """
+    Fetch specific issues/PRs by number, with no comment-count filter.
+
+    Deliberately not fetch_issue_threads: that path selects on discussion volume,
+    which is the right filter for a Q&A corpus and the wrong one here. A
+    four-comment issue that six other threads cite is foundational by definition,
+    and the search path would never surface it -- so sampling by volume is
+    precisely what left the reference graph pointing at issues we did not have.
+
+    Numbers that do not resolve are skipped rather than raised on. Candidates are
+    harvested from prose, so some are not issue references at all; a 404 is the
+    expected outcome for those, not a failure.
+    """
+    owns_client = client is None
+    client = client or GitHubClient()
+    numbers = [str(n) for n in numbers]
+
+    try:
+        threads = []
+        missing = skipped_bot = skipped_short = 0
+
+        for i, number in enumerate(numbers, 1):
+            try:
+                issue = client.get(f"/repos/{repo}/issues/{number}")
+            except httpx.HTTPStatusError as exc:
+                # 404: no such issue. 410: deleted. Both mean "not a real
+                # reference", which is a normal result for a harvested number.
+                if exc.response.status_code in (404, 410):
+                    missing += 1
+                    continue
+                raise
+
+            if _is_bot(issue.get("user") or {}):
+                skipped_bot += 1
+                continue
+
+            doc = _build_thread(client, repo, issue, min_messages=min_messages)
+            if doc is None:
+                skipped_short += 1
+                continue
+
+            threads.append(doc)
+            if progress:
+                progress(i, len(numbers))
+
+        print(
+            f"fetched {len(threads)} of {len(numbers)} referenced issues from {repo} "
+            f"(skipped {missing} that do not exist, {skipped_bot} bot-authored, "
+            f"{skipped_short} with fewer than {min_messages} messages)"
+        )
+        return _finish(threads, owns_client, client)
+
+    except Exception:
+        if owns_client:
+            client.close()
+        raise
+
+
 def _finish(threads, owns_client, client):
     if owns_client:
         client.close()
@@ -270,7 +335,9 @@ def _all_comments(client: GitHubClient, repo: str, number: int) -> list[dict]:
     return comments
 
 
-def _build_thread(client: GitHubClient, repo: str, issue: dict) -> dict | None:
+def _build_thread(
+    client: GitHubClient, repo: str, issue: dict, min_messages: int = 2
+) -> dict | None:
     number = issue["number"]
     is_pr = "pull_request" in issue
 
@@ -316,7 +383,10 @@ def _build_thread(client: GitHubClient, repo: str, issue: dict) -> dict | None:
 
     # A thread with a single message is a statement, not a discussion. It cannot
     # demonstrate the question-and-answer retrieval this corpus exists to test.
-    if len(messages) < 2:
+    # Kept at 2 for the densification pass too: relaxing the inclusion bar at the
+    # same time as enlarging the corpus would make the before/after eval
+    # uninterpretable, since two variables would have moved.
+    if len(messages) < min_messages:
         return None
 
     messages.sort(key=lambda m: float(m["ts"]))

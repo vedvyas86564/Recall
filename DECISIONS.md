@@ -293,14 +293,18 @@ Adopting it means adopting a mock application and rewiring every page — larger
 
 **Why not the graph the spec suggests.** Spec §3 leads with dependency signals: PR references, import graphs. Measured against the corpus, that graph cannot carry an ordering:
 
-| | |
-|---|---|
-| threads | 100 |
-| cross-reference edges within corpus | 19 |
-| threads with in-degree ≥ 1 | 16 |
-| highest in-degree | 4 (#1495) |
+| | | |
+|---|---|---|
+| | as first recorded | corrected |
+| threads | 100 | 100 |
+| cross-reference edges within corpus | ~~19~~ | **41** |
+| threads with in-degree ≥ 1 | ~~16~~ | **31** |
+| threads with in-degree 0 | ~~84~~ | **69** |
+| highest in-degree | 4 (#1495) | 4 (#1495) |
 
-**84 of 100 threads have in-degree zero**, so a graph-based ranker returns a flat pile for almost any query. The sparsity is an artefact of sampling the top 100 threads by comment count — the issues they reference mostly fall outside the sample, so edges point nowhere. References are still used where they exist, since they are the strongest evidence available; they simply cannot be the only signal.
+> **Correction (2026-07-30).** The first three numbers above were wrong when this entry was written. Re-measuring through `reference_counts()` — the function the product actually calls — gives 41 edges over 31 threads, not 19 over 16. The graph is roughly twice as dense as recorded. The conclusion below still holds at the corrected numbers (69 of 100 threads remain indistinguishable at in-degree zero), but the margin was overstated, and a decision argued from a measurement is only as good as the measurement.
+
+**69 of 100 threads have in-degree zero**, so a graph-based ranker returns a flat pile for almost any query. The sparsity is an artefact of sampling the top 100 threads by comment count — the issues they reference mostly fall outside the sample, so edges point nowhere. References are still used where they exist, since they are the strongest evidence available; they simply cannot be the only signal.
 
 **Rejected: letting a model sequence the retrieved set.** Likely a better ordering, since it reads content rather than metadata. Rejected because the ordering stops being defensible — you cannot say why item 3 outranks item 4 — and explainability is the property this project has optimised for throughout. Also one extra model call per request.
 
@@ -314,3 +318,79 @@ Adopting it means adopting a mock application and rewiring every page — larger
 **Known weakness, not yet fixed.** Widening k to get thread diversity also admits weakly-related threads. A relevance floor at the abstention threshold (0.44) removes the worst of it — a thread not good enough to answer from is not good enough to assign as reading — but ticket-resolved paths remain thin: `#3957` yields six threads at ~0.45 relevance with no strong topical link. That is arguably the honest answer for a 100-thread sample with no topically adjacent material, rather than a ranking bug.
 
 **What would settle it:** a golden ramp-up set, the way `evals/golden.jsonl` settled the relevance threshold. Phase 1's lesson was that the threshold I chose by intuition was wrong by 27 percentage points and only measurement caught it. The same applies to these weights, and they should not be tuned further without it.
+
+> **Superseded in part by D19 (2026-07-30).** The sparsity this entry rests on was a property of how the corpus was sampled, not of the reference graph. Densifying it took in-corpus edges from 41 to 589 and threads with in-degree ≥ 1 from 31% to 93%. The signal blend is kept, but "references are too rare to lead an ordering" is no longer true.
+
+---
+
+## D19 — Densify the reference graph rather than design around the sparse one
+
+**Decision.** (2026-07-30) Ingest the issues the corpus *references* but does not contain: 292 new threads, taking the corpus from 100 to 392. D18 concluded that dependency-based ordering was not viable because the graph was too sparse. That was a fact about the sampling, and it does not survive contact with the referenced issues themselves.
+
+**What changed.**
+
+| | before | after |
+|---|---|---|
+| threads | 100 | **392** |
+| chunks | 2,829 | **4,149** |
+| in-corpus edges | 41 | **589** |
+| threads with in-degree ≥ 1 | 31 (31%) | **365 (93%)** |
+| threads with in-degree 0 | 69 | **27** |
+| highest in-degree | 4 | **11** |
+| mean in-degree | 0.41 | **1.50** |
+
+**Why the graph looked sparse.** Phase 1 sampled "the top 100 threads by comment count" (D8). But the issues a discussion *cites* are usually not the chatty ones — they are the original bug report, the design proposal, the tracking ticket. So nearly every edge pointed outside the sample and disappeared. Fetching referenced issues *by number*, with no comment-count filter, recovers them.
+
+The clearest evidence is `#8157`: five threads reference it, and it has nine messages. The `min_comments` search path could not have returned it at any setting that also produced a useful Q&A corpus — and it is exactly the kind of thread a new contributor should read first.
+
+**A false-edge bug, found and fixed before ingesting.** `extract_references` matched `github.com/ANY/REPO/issues/N` and attributed the number to *this* repo. Measured on the corpus: **169 distinct issue numbers harvested from other projects** — pypa/pip, python-poetry/poetry, dependabot/dependabot-core, astral-sh/rye, apache/airflow, microsoft/vscode-python.
+
+They were inert only because none of those numbers happened to be indexed. Densification is precisely what would have converted them into silent false edges pointing at unrelated uv issues of the same number — a wrong ordering with a confident explanation attached, which is the failure mode this project exists to avoid. Qualified references (full URLs, `owner/repo#N`) must now name the repo; bare `#N` is still read as this repo's, because that is what contributors mean by it. Scoping cut the candidate list from 539 to 373 and prevented **176 false edges**.
+
+*Residual limit, deliberately not papered over:* prose like "same as pypa/pip #5632" puts whitespace before the `#`, so it reads as a bare reference. Regex cannot resolve that.
+
+**A staleness bug, found and fixed.** `references.invalidate()` existed but was **never called from anywhere in production code**. Worse, calling it would not have been enough: ingest runs in a script or a one-off container while the graph is cached inside the long-lived API process. An ingest that adds 292 threads would leave every serving instance ranking against the old graph — indefinitely, with no symptom, still returning well-formed orderings. Replaced with a corpus fingerprint (document count + latest `updated_at`) checked per request, so the reader notices the writer without being told.
+
+**What was left out, and why.** 80 of the 373 candidates were single-message issues — a report nobody replied to. The existing 2-message floor was kept rather than relaxed, because moving the inclusion bar and the corpus size in the same pass would make the before/after eval uninterpretable. Their incoming edges are still lost. Relaxing it is a separate, measurable change.
+
+**The graph is not finished.** The 292 new threads brought their own references: **371 edges still point at 331 unindexed issues**. A second round would chase those, with clearly diminishing returns — this round bought 14× the edges for 4× the corpus, and the next would be flatter. Re-running `scripts/densify_references.py` is safe and idempotent whenever that trade looks worth it.
+
+**Cost.** 292 documents and 1,320 chunks in 9 minutes of fetch-and-embed (plus ~4.5 minutes of `import boto3` on this machine, which is a disk problem, not a code one). Database grew 35 MB → 46 MB, well inside Supabase's free tier. GitHub rate limit was never a constraint: ~900 of 5,000 requests.
+
+**Weights unchanged.** D18's 0.45 / 0.35 / 0.20 stay exactly as they were. References now lead far more orderings simply because the signal exists where it previously did not — no retuning was needed, and none should happen without the golden ramp-up set D18 asked for. Changing weights on the strength of one good measurement is the mistake D12 caught, in the other direction.
+
+**Ordering, measured.** Three probes against the live corpus (`scripts/probe_rampup.py`). Every one now orders differently from relevance order, which is the property spec §3 asks for:
+
+| probe | candidates | items carrying a reference signal |
+|---|---|---|
+| "virtual environment management in uv" | 6 | 5 / 6 |
+| "how uv resolves dependency versions" | 38 | 8 / 8 |
+| `#3957` (ticket-resolved) | 19 | 7 / 8 |
+
+`#3957` is the case D18 recorded as the known weakness — "six threads at ~0.45 relevance with no strong topical link". It now retrieves 19 candidates, seven of eight ordered items carry references, and the path is led by `#171` (5 references) rather than by whatever scored highest. `#1495` — previously the corpus's most-referenced thread at 4 — now sits at 11 and leads its path on the reference signal alone.
+
+### Retrieval impact — the before/after spec §8 requires
+
+| | before (100 threads) | after (392 threads) |
+|---|---|---|
+| Recall@1 | 87.9% | **78.8%** |
+| Recall@3 | 97.0% | **93.9%** |
+| Recall@5 | 97.0% | **93.9%** |
+| Recall@10 | 100% | **100%** |
+| Citation precision | 91.5% | **77.7%** |
+| Abstention accuracy | 100% | **100%** |
+| False abstention rate | 3.0% | **3.0%** |
+
+**This is a measured regression and it is recorded as one.** Recall@1 fell 9 points and citation precision 14. Abstention behaviour is untouched, and Recall@10 held at 100% — nothing was pushed out of retrieval, things moved *within* it.
+
+**How much of it is real is not yet known, and the honest answer is "not established".** The golden set's `expect_sources` enumerate the valid sources in a 100-thread corpus. It has no way to distinguish "cited something wrong" from "cited something valid that was never listed". What the evidence shows so far:
+
+- All three questions that lost rank 1 were displaced by threads ingested in *this* pass, and all three displacers are on topic: `#10211 "Task runner plugin system"`, `#2352 "Implement --user flag and user scheme support for uv pip"`, `#6692 "What is the intended workflow for updating dependencies with uv?"`. For the `--user` question, `#2352` is arguably a better source than the expected `#2077`.
+- Of the 27 threads cited but not listed in the golden set, **19 were added by this pass**.
+- In every case the expected source was still retrieved, at rank 2 or 3.
+
+**The countervailing concern, which is why this is not simply written off.** The displacers are short — 6, 12 and 13 messages against 253, 97 and 87 for the expected sources. Shorter text embeds as a tighter topical match, so a thin on-topic thread can outrank a thorough one while carrying far less answer material. That is the same mechanism behind the one documented false abstention (a specific question scoring below a broad chunk about the same subject), and a reranker is the fix for both.
+
+**Required next step, and how *not* to do it.** The golden set has to be refreshed against the 392-thread corpus before any of these numbers mean anything again — and refreshed by *reading* the new threads to decide whether each is genuinely a valid source, not by copying what retrieval returned. Pasting the observed citations into `expect_sources` would restore the numbers to 100% and measure nothing. Until that is done, **no retrieval tuning should be argued from this run**, and the trustworthy figures from it are Recall@10, abstention accuracy and false abstention rate, all unchanged.
+
+**Demo numbers are unaffected.** The three scores quoted in `DEMO.md` / `DEMO_SCRIPT.md` / `TRY_IT.md` were re-measured and are identical to four decimal places: 0.765 (VSCode), 0.436 (Airflow, still the single false abstention), 0.300 (parental leave). Densification added no thread that beats the top match on any of them.

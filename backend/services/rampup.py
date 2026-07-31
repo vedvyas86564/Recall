@@ -10,22 +10,37 @@ decides the *order*. That separation is the whole idea.
 
 Why signal-based rather than graph-based
 ----------------------------------------
-The spec suggests dependency signals -- PR references, import graphs. Measured
-against the indexed corpus, that graph is too sparse to order anything: 19
-cross-reference edges across 100 threads, and 84 threads with in-degree zero,
-which makes them indistinguishable from each other.
+The spec suggests dependency signals -- PR references, import graphs. This was
+first built as a weighted blend because that graph looked far too sparse to
+order anything on its own. That turned out to be a fact about the corpus, not
+about the idea, and densifying it changed the picture completely:
 
-The sparsity is an artefact of sampling the top 100 threads by comment count --
-most issues they reference fall outside the sample, so the edges point nowhere.
-References are still used where they exist, because when present they are the
-strongest evidence available; they just cannot carry the ordering alone.
+                            before      after
+    threads                    100        392
+    in-corpus edges             41        589
+    threads with in-degree >=1  31 (31%)  365 (93%)
+    threads with in-degree 0     69         27
+    mean in-degree            0.41       1.50
+
+The original sparsity was an artefact of sampling the top 100 threads by comment
+count: the issues a discussion cites are usually *not* the chattiest ones, so
+almost every edge pointed outside the sample and vanished. Ingesting the
+referenced issues themselves recovered them (DECISIONS.md D19).
+
+The blend is kept anyway. References are now a real signal rather than a rare
+one, but 27 threads still have in-degree zero and would be unorderable under a
+pure graph ranker, and the weights have never been validated against a golden
+ramp-up set -- so replacing a working blend with a graph ranker on the strength
+of one good measurement would repeat exactly the mistake D12 caught.
 
 Signals, and what each one is evidence of
 -----------------------------------------
 - referenced_by: other threads cite this one, so it established something they
-  build on. Strongest signal, available for ~16% of threads.
+  build on. Strongest signal, and now available for 93% of threads rather than
+  31%, which is what makes it able to lead an ordering rather than just break
+  ties.
 - chronology: earlier discussions establish context that later ones assume.
-  Weaker but available for every thread, so it carries most orderings.
+  Weaker but available for every thread, so it still carries the tail.
 - volume: a 170-message thread is load-bearing in a way an 8-message one is not.
   Weakest of the three, and used mainly to break ties.
 
@@ -42,21 +57,45 @@ W_REFERENCED = 0.45
 W_CHRONOLOGY = 0.35
 W_VOLUME = 0.20
 
-# GitHub issue references: #1234, GH-1234, or a full issue/pull URL.
-_REF_PATTERNS = (
+# Bare references -- '#1234' or 'GH-1234'. Unqualified, so they are read as
+# belonging to the thread's own repository, which is how contributors write them.
+_BARE_PATTERNS = (
     re.compile(r"(?:^|[\s(\[])#(\d{2,6})\b"),
     re.compile(r"\bGH-(\d{2,6})\b", re.IGNORECASE),
-    re.compile(r"github\.com/[\w.-]+/[\w.-]+/(?:issues|pull)/(\d{2,6})"),
+)
+
+# Qualified references, which name their repository: a full issue/pull URL, or
+# the 'owner/repo#1234' shorthand. Both capture (repo, number) so the repo can be
+# checked rather than discarded.
+_QUALIFIED_PATTERNS = (
+    re.compile(r"github\.com/([\w.-]+/[\w.-]+)/(?:issues|pull)/(\d{2,6})"),
+    re.compile(r"\b([\w.-]+/[\w.-]+)#(\d{2,6})\b"),
 )
 
 
-def extract_references(text: str, exclude: str | None = None) -> set[str]:
+def extract_references(
+    text: str, exclude: str | None = None, repo: str | None = None
+) -> set[str]:
     """
     Issue numbers referenced by a thread's text.
 
     `exclude` drops the thread's own number, which otherwise self-references
     constantly -- GitHub renders the issue number inside its own body and
     participants quote it back.
+
+    `repo` scopes qualified references to one repository, and passing it is
+    strongly recommended. Without it, a link to github.com/pypa/pip/issues/5632
+    yields "5632", which then reads as a reference to *this* repo's #5632 -- a
+    different issue about something else entirely. Measured on the uv corpus, 169
+    distinct numbers were being harvested from pypa/pip, python-poetry/poetry,
+    dependabot-core and others this way. They were inert only because none of
+    those numbers happened to be indexed; densifying the corpus is exactly what
+    would have turned them into silent false edges.
+
+    Bare '#1234' stays attributed to `repo` because that is what it means in
+    practice. The residual imprecision is prose like "same as pypa/pip #5632",
+    where the space makes the number look bare -- regex cannot resolve that, and
+    it is left as a known limit rather than papered over.
 
     Requires a boundary before '#' so that a Markdown heading (`### Summary`) or
     a colour literal (`#fff`) is not read as a reference. Two-digit minimum for
@@ -66,8 +105,13 @@ def extract_references(text: str, exclude: str | None = None) -> set[str]:
         return set()
 
     found: set[str] = set()
-    for pattern in _REF_PATTERNS:
+    for pattern in _BARE_PATTERNS:
         found.update(pattern.findall(text))
+
+    for pattern in _QUALIFIED_PATTERNS:
+        for found_repo, number in pattern.findall(text):
+            if repo is None or found_repo.lower() == repo.lower():
+                found.add(number)
 
     if exclude:
         found.discard(str(exclude))

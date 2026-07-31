@@ -16,7 +16,7 @@ the bar it declines and shows you the closest thing it found instead.
 
 ## Read this before you start, or you'll think it's broken
 
-This demo is indexed against **one specific corpus**: 100 discussion threads
+This demo is indexed against **one specific corpus**: 392 discussion threads
 from [astral-sh/uv](https://github.com/astral-sh/uv), the Python package
 manager. About 2,800 searchable chunks.
 
@@ -143,6 +143,10 @@ unanswerable:
 | | |
 |---|---|
 | Correct source in top 10 | 100% |
-| Correct source ranked first | 87.9% |
 | Correct refusals | 100% |
 | Wrong refusals | 3% |
+
+"Correct source ranked *first*" is left out on purpose. The corpus recently grew
+from 100 threads to 392, and the question list still names only the sources that
+existed at 100 — so a newer thread that answers the question just as well counts
+as a miss. It reads 78.8% and that number is not currently meaningful.
