@@ -71,7 +71,9 @@ explaining away.
 > "It's embedding the question, searching about four thousand chunks, and
 > pulling the ones that clear a relevance bar."
 
-`[Answer appears. Five decisions. Point at the first one.]`
+`[Answer appears — five or six decisions; the count comes from a model call and
+varies slightly between runs, so don't say a number out loud. Point at the first
+one.]`
 
 > "That came out of a hundred-and-seven-message thread. Nobody is reading that
 > thread. And look at the structure — it didn't just summarize, it separated out
