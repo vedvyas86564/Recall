@@ -143,10 +143,6 @@ unanswerable:
 | | |
 |---|---|
 | Correct source in top 10 | 100% |
+| Correct source ranked first | 90.9% |
 | Correct refusals | 100% |
 | Wrong refusals | 3% |
-
-"Correct source ranked *first*" is left out on purpose. The corpus recently grew
-from 100 threads to 392, and the question list still names only the sources that
-existed at 100 — so a newer thread that answers the question just as well counts
-as a miss. It reads 78.8% and that number is not currently meaningful.

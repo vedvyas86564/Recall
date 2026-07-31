@@ -148,6 +148,7 @@ speaking. Let them read it.]`
 | | |
 |---|---|
 | Recall@10 | **100%** |
+| Recall@1 | **90.9%** |
 | Correct refusals | **100%** |
 | Wrong refusals | 3% |
 
@@ -266,15 +267,14 @@ it, name it as the three percent and move on.
   about that is what makes "verify it yourself" land.
 - **Don't say Slack ingestion is done.** The parser exists and is tested; the
   workspace connection is not built.
-- **Don't quote citation precision.** It *is* measured now (the full eval runs
-  generation), but it currently reads 77.7% for the same reason Recall@1 does —
-  the golden set predates the larger corpus. Quote Recall@10 and refusal
-  accuracy, which are unaffected.
+- **Citation precision is 87.7%, and quote it as a floor.** It measures
+  agreement with our golden set, and a citation can genuinely support a claim
+  without being one we anticipated.
 - **Don't say "AI-powered."** Everything is. Say what it does.
 - **Don't oversell the corpus size.** Four hundred threads is a demo. If someone
   pushes on scale, talk about pgvector and batched embedding, not about volume
   you don't have.
-- **Don't quote Recall@1 right now.** It reads 78.8% since the corpus grew, but
-  the golden set still lists only the sources that existed at a hundred threads,
-  so it is scoring correct-but-unlisted answers as misses. Quote Recall@10
-  (100%) and the refusal numbers, which are unaffected. See DECISIONS.md D19.
+- **If asked whether growing the corpus hurt quality, the answer is no and you
+  can show your work.** Recall@1 went *up*, 87.9% to 90.9%. It dipped to 78.8%
+  first, and that turned out to be the eval's answer key being stale rather than
+  retrieval getting worse. Worth telling — it is a better story than the number.

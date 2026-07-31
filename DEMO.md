@@ -45,13 +45,10 @@ That is the enterprise objection, answered before it is raised.
 | metric | value |
 |---|---|
 | Recall@10 | **100%** |
+| Recall@1 | **90.9%** |
 | Abstention accuracy | **100%** |
 | False abstention | 3.0% |
-
-Recall@1 is deliberately absent. It reads 78.8% against the current 392-thread
-corpus, but the golden set still enumerates only the sources that existed when
-the corpus was 100 threads, so it scores correct-but-unlisted answers as misses.
-Quoting it either way would misrepresent it. See `DECISIONS.md` D19.
+| Citation precision | 87.7% |
 
 Then the honest part, which buys more credibility than it costs:
 
@@ -134,10 +131,10 @@ caught surprised by it does not.
   about that is what makes the click-to-verify move land.
 - Do not promise Slack ingestion is done. The parser exists and is tested; the
   workspace connection is not built.
-- Do not quote citation precision. It is measured (the full eval runs
-  generation) but currently reads 77.7% for the same reason Recall@1 does — the
-  golden set predates the larger corpus. Quote Recall@10 and abstention
-  accuracy, which are unaffected.
+- Citation precision is quotable now (87.7%), but say it is measured against a
+  golden set — a citation can support a claim without being one we listed, so
+  treat it as a floor. Before quoting it in a comparison, note that it only
+  became run-to-run stable once extraction was pinned to temperature 0.
 
 ---
 

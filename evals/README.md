@@ -93,3 +93,44 @@ operator alignment was one such case — Nova embeddings are unit-norm, so the t
 operators are monotonically related and rank identically. That argument is
 recorded in the commit rather than backed by a run, because at the time there
 was no corpus to run against.
+
+## Refreshing the set after the corpus grows
+
+`expect_sources` enumerates the valid sources *in the corpus as it was when the
+question was written*. Grow the corpus and the set silently starts scoring
+correct-but-unlisted answers as misses — Recall@1 and citation precision fall
+while nothing has actually got worse. This happened at D19: the corpus went from
+100 threads to 392, Recall@1 read 78.8% and citation precision 77.7%, and both
+were partly measuring the golden set's age rather than the system.
+
+**The one thing that destroys the harness:** pasting the observed citations into
+`expect_sources`. The numbers return to ~100% and measure nothing, because the
+answer key has been copied from the thing under test. There is no way to detect
+this later from the numbers alone.
+
+The method that keeps it honest:
+
+1. Collect candidates — threads retrieved or cited but not listed. Do not treat
+   this list as the answer, only as the review queue.
+2. **Read each candidate** against the question, and apply a fixed bar. The bar
+   used at D19: *the thread must contain material that directly answers the
+   question as asked, not merely material on the same topic.*
+3. Add only what clears the bar. Write down why each one did.
+4. Write down the rejections and why, so the review can be argued with rather
+   than taken on trust. At D19, 13 of 27 candidates were accepted — a review
+   that accepts nearly everything is a rubber stamp, and one that accepts almost
+   nothing is probably applying a bar the product does not actually hold.
+
+Two rejections from D19 are worth keeping as calibration:
+
+- `#9008` was cited for a question about a private GitLab index. It is a private
+  *PyPI* bug report whose body is interpreter-discovery logs. On-topic-sounding,
+  genuinely wrong, and exactly what citation precision exists to catch.
+- `#1419` was cited for "how do I upgrade dependencies declared in
+  pyproject.toml". It answers with `uv lock --upgrade`, which upgrades the lock
+  and not the declarations. Close enough to look right, wrong enough to mislead
+  — the distinction is the whole point of the question.
+
+Refreshing sources does **not** refresh coverage. The questions still probe the
+subject matter of the original corpus; new material is under-sampled until new
+questions are written for it.

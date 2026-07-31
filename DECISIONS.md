@@ -393,4 +393,65 @@ They were inert only because none of those numbers happened to be indexed. Densi
 
 **Required next step, and how *not* to do it.** The golden set has to be refreshed against the 392-thread corpus before any of these numbers mean anything again — and refreshed by *reading* the new threads to decide whether each is genuinely a valid source, not by copying what retrieval returned. Pasting the observed citations into `expect_sources` would restore the numbers to 100% and measure nothing. Until that is done, **no retrieval tuning should be argued from this run**, and the trustworthy figures from it are Recall@10, abstention accuracy and false abstention rate, all unchanged.
 
+> **Done — see D20.** Refreshed by review. Recall@1 came back at **90.9%**, three points *above* the pre-densification baseline; citation precision recovered to 83.3% but did not return to 91.5%, and D20 records why that residual cannot be read at single-run resolution.
+
 **Demo numbers are unaffected.** The three scores quoted in `DEMO.md` / `DEMO_SCRIPT.md` / `TRY_IT.md` were re-measured and are identical to four decimal places: 0.765 (VSCode), 0.436 (Airflow, still the single false abstention), 0.300 (parental leave). Densification added no thread that beats the top match on any of them.
+
+---
+
+## D20 — Refresh the golden set by review, and stop extraction from sampling
+
+**Decision.** (2026-07-31) Refreshed `expect_sources` against the 392-thread corpus by reading every candidate and judging it against a fixed bar, then pinned Nova Lite extraction to temperature 0 after finding it was the only nondeterministic step in the pipeline.
+
+### The refresh
+
+**The bar.** *A thread qualifies only if it contains material that directly answers the question as asked, not merely material on the same topic.* Stated up front so the review could be checked against it rather than drifting to fit the numbers.
+
+**What came out of it.** 27 candidate threads reviewed — every thread cited but unlisted, plus every rank-1 displacement. **13 accepted across 10 questions, 14 rejected.** Both halves are recorded in the commit with a per-thread reason.
+
+An accept/reject split near 50% is itself the signal worth watching. A review that waves nearly everything through has copied the answer key; one that rejects nearly everything is enforcing a bar the product does not actually hold itself to.
+
+**Two rejections worth keeping as calibration:**
+
+- `#9008`, cited for *"Can I resolve packages from a private GitLab package index?"* — a private **PyPI** bug report whose body is Python interpreter-discovery logs. It looks on topic and is genuinely wrong. Cited five times; exactly what citation precision exists to catch.
+- `#1419`, cited for *"How do I upgrade dependencies declared in pyproject.toml?"* — answers with `uv lock --upgrade`, which upgrades the **lock** and not the declarations. Close enough to pass a skim, wrong enough to mislead; that distinction is the entire point of the question.
+
+**The trap, named so it stays named.** Pasting the observed citations into `expect_sources` restores every metric to ~100% and measures nothing, because the answer key has been copied from the system under test. Nothing downstream can detect it. The corollary is that the refresh must be done **once against a fixed candidate set** — repeating it until the number looks good converges on the same rubber stamp one round at a time.
+
+### What it recovered
+
+| | before densify | after, stale golden | after, refreshed |
+|---|---|---|---|
+| Recall@1 | 87.9% | 78.8% | **90.9%** |
+| Recall@3 | 97.0% | 93.9% | **97.0%** |
+| Recall@10 | 100% | 100% | **100%** |
+| Abstention accuracy | 100% | 100% | **100%** |
+| False abstention | 3.0% | 3.0% | **3.0%** |
+
+**The Recall regression was entirely an artefact, and densification was a genuine improvement.** Recall@1 did not merely return to baseline, it came out **three points above** it: the new corpus contains better rank-1 sources than the old one did, which the stale answer key had been scoring as misses.
+
+### The finding that mattered more
+
+Citation precision recovered to 83.3%, short of the 91.5% baseline — and chasing that gap turned up the real problem. Two full runs over an **identical corpus with identical retrieval**, differing only in the answer key (which extraction never sees), disagreed on **25% of citation slots across 12 of 39 questions**.
+
+`extract_decisions` sent no `inferenceConfig`, so Nova Lite ran at its default temperature. Now pinned to `temperature: 0.0, topP: 1.0`:
+
+| | default | temperature 0 |
+|---|---|---|
+| questions whose citations changed between runs | 12 / 39 | **1 / 39** |
+| citation slots varying | 25% | **2%** |
+| citation precision | 77.7% → 83.3% (single runs) | **87.7%, 86.9%** (two runs) |
+
+**The measurement consequence.** Citation precision was never comparable between single runs, which retroactively weakens every one-run comparison of it in this log, including the 91.5% baseline — that figure is one sample from a distribution roughly four points wide. Against a temp-0 pair at 87.7 / 86.9, the apparent post-densification drop is within the noise the old method could not see. It is not being claimed as "no regression"; it is being recorded as *not measurable against a baseline taken this way*. From here it is measurable.
+
+**The product consequence is the bigger one.** Asking the same question twice returned different citations, in a tool whose entire pitch is that you can check its work. Extraction reads evidence and reports what is in it — there is no version of that task where sampling helps. This should have been set the day the extractor was written.
+
+**Pinned by a test.** `build_request_body` is split out of `extract_decisions` so `tests/test_nova_extract_body.py` can assert the sampling settings without standing up a Bedrock client. Nothing fails when this regresses — the numbers just quietly go noisy again — so it gets an explicit test.
+
+### Coverage is still stale even though sources are not
+
+The questions were written by reading the original 100 threads. They now name 43 distinct threads out of 392 — **11% of the corpus, down from 43%**. Refreshing `expect_sources` fixed the answer key; it did not broaden what is being asked about, and the 292 threads added by D19 are barely probed. New questions written against the new material are the outstanding work, and until then these metrics describe retrieval over the corpus's older subject matter.
+
+### Incidental: the test suite runs locally again
+
+Making `import boto3` lazy in `bedrock_embed` and `nova_extract` — the earlier fix made only the *client* lazy, which was half the problem, since importing the SDK is itself the expensive part — took the full suite from dying at collection with `TimeoutError [Errno 60]` after 381s to **174 passing in 232s**.

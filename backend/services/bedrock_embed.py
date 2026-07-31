@@ -1,6 +1,4 @@
 import os, json
-import boto3
-from botocore.config import Config
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -31,9 +29,17 @@ def _bedrock():
     Timeouts are generous and configurable. An earlier 15s connect timeout was
     right for production and wrong for a slow local environment, where it turned
     a delay into a hard failure.
+
+    The `import boto3` lives in here rather than at module scope. Making only the
+    client lazy fixed half the problem: importing the SDK is itself the expensive
+    part -- minutes on a machine with slow disk -- and every importer paid it
+    whether or not it ever reached AWS.
     """
     global _client
     if _client is None:
+        import boto3
+        from botocore.config import Config
+
         _client = boto3.client(
             "bedrock-runtime",
             region_name=REGION,

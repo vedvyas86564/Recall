@@ -13,26 +13,26 @@
 // opening post. Those are the ones that prove chunking keeps a question with
 // its answer.
 
-{"q": "Can uv be used as a task runner like npm scripts?", "expect_sources": ["github:astral-sh/uv:5903"], "answerable": true}
+{"q": "Can uv be used as a task runner like npm scripts?", "expect_sources": ["github:astral-sh/uv:5903", "github:astral-sh/uv:10211"], "answerable": true}
 {"q": "Why does uv need its own build backend instead of using an existing one?", "expect_sources": ["github:astral-sh/uv:3957"], "answerable": true}
 {"q": "Why would anyone want virtual environments stored outside the project directory?", "expect_sources": ["github:astral-sh/uv:1495"], "answerable": true}
 {"q": "Is there a way to activate a virtualenv through uv, like a uv shell command?", "expect_sources": ["github:astral-sh/uv:1910"], "answerable": true}
 {"q": "Why doesn't VSCode pick up the .venv interpreter automatically?", "expect_sources": ["github:astral-sh/uv:9637"], "answerable": true}
 {"q": "Does uv support loading environment variables from a .env file?", "expect_sources": ["github:astral-sh/uv:1384"], "answerable": true}
-{"q": "What was decided about supporting pip's --user flag?", "expect_sources": ["github:astral-sh/uv:2077"], "answerable": true}
-{"q": "How do you bump a project's version with uv?", "expect_sources": ["github:astral-sh/uv:6298"], "answerable": true}
-{"q": "How do I upgrade dependencies declared in pyproject.toml?", "expect_sources": ["github:astral-sh/uv:6794"], "answerable": true}
+{"q": "What was decided about supporting pip's --user flag?", "expect_sources": ["github:astral-sh/uv:2077", "github:astral-sh/uv:2352", "github:astral-sh/uv:1584"], "answerable": true}
+{"q": "How do you bump a project's version with uv?", "expect_sources": ["github:astral-sh/uv:6298", "github:astral-sh/uv:12349"], "answerable": true}
+{"q": "How do I upgrade dependencies declared in pyproject.toml?", "expect_sources": ["github:astral-sh/uv:6794", "github:astral-sh/uv:13934", "github:astral-sh/uv:6692"], "answerable": true}
 {"q": "What causes uv pip install to fail inconsistently on Windows?", "expect_sources": ["github:astral-sh/uv:1491"], "answerable": true}
 {"q": "Can uv.lock use different index URLs for different dependency groups?", "expect_sources": ["github:astral-sh/uv:6349"], "answerable": true}
 {"q": "Why does pydantic resolve to a prerelease when prereleases are allowed?", "expect_sources": ["github:astral-sh/uv:1641"], "answerable": true}
 {"q": "Is there a plan for uv to build container images or bundles?", "expect_sources": ["github:astral-sh/uv:5802"], "answerable": true}
-{"q": "How does uv handle monorepos and workspaces?", "expect_sources": ["github:astral-sh/uv:6935"], "answerable": true}
+{"q": "How does uv handle monorepos and workspaces?", "expect_sources": ["github:astral-sh/uv:6935", "github:astral-sh/uv:4574"], "answerable": true}
 {"q": "What is the problem with lock files and dynamic package versions?", "expect_sources": ["github:astral-sh/uv:7533"], "answerable": true}
 {"q": "Can I resolve packages from a private GitLab package index?", "expect_sources": ["github:astral-sh/uv:9331"], "answerable": true}
 {"q": "What is the argument about discarding upper bounds on Requires-Python?", "expect_sources": ["github:astral-sh/uv:4022"], "answerable": true}
-{"q": "Can uv pin a package to come from one specific index?", "expect_sources": ["github:astral-sh/uv:171"], "answerable": true}
-{"q": "Is there an equivalent of pip list --outdated?", "expect_sources": ["github:astral-sh/uv:2150"], "answerable": true}
-{"q": "Does uv support --trusted-host for internal package servers?", "expect_sources": ["github:astral-sh/uv:1339"], "answerable": true}
+{"q": "Can uv pin a package to come from one specific index?", "expect_sources": ["github:astral-sh/uv:171", "github:astral-sh/uv:7481"], "answerable": true}
+{"q": "Is there an equivalent of pip list --outdated?", "expect_sources": ["github:astral-sh/uv:2150", "github:astral-sh/uv:2582"], "answerable": true}
+{"q": "Does uv support --trusted-host for internal package servers?", "expect_sources": ["github:astral-sh/uv:1339", "github:astral-sh/uv:4944", "github:astral-sh/uv:6591"], "answerable": true}
 {"q": "What is the plan for managing tools installed by uv?", "expect_sources": ["github:astral-sh/uv:3560"], "answerable": true}
 {"q": "Can uv produce a software bill of materials?", "expect_sources": ["github:astral-sh/uv:6012"], "answerable": true}
 {"q": "What is planned for auditing dependencies for vulnerabilities?", "expect_sources": ["github:astral-sh/uv:18506"], "answerable": true}
@@ -40,10 +40,10 @@
 {"q": "Can I install a project's dependencies without installing the project itself?", "expect_sources": ["github:astral-sh/uv:4028"], "answerable": true}
 {"q": "Does uv work with dependabot?", "expect_sources": ["github:astral-sh/uv:2512"], "answerable": true}
 
-{"q": "Was .env file support accepted or rejected by the maintainers?", "expect_sources": ["github:astral-sh/uv:1384"], "answerable": true, "thread_reply": true}
+{"q": "Was .env file support accepted or rejected by the maintainers?", "expect_sources": ["github:astral-sh/uv:1384", "github:astral-sh/uv:16926"], "answerable": true, "thread_reply": true}
 {"q": "Did the maintainers change their position on reading settings from pip.conf?", "expect_sources": ["github:astral-sh/uv:1404"], "answerable": true, "thread_reply": true}
 {"q": "Should uv warn when an active virtualenv is not the one being targeted?", "expect_sources": ["github:astral-sh/uv:6612"], "answerable": true, "thread_reply": true}
-{"q": "Does uv retry connection reset errors at the TCP layer?", "expect_sources": ["github:astral-sh/uv:3514"], "answerable": true, "thread_reply": true}
+{"q": "Does uv retry connection reset errors at the TCP layer?", "expect_sources": ["github:astral-sh/uv:3514", "github:astral-sh/uv:8144"], "answerable": true, "thread_reply": true}
 {"q": "Was the slow download problem caused by rate limiting?", "expect_sources": ["github:astral-sh/uv:5073"], "answerable": true, "thread_reply": true}
 {"q": "How much faster did the Airflow production image get after switching to uv?", "expect_sources": ["github:astral-sh/uv:2077"], "answerable": true, "thread_reply": true}
 {"q": "What did people say they missed from virtualenvwrapper?", "expect_sources": ["github:astral-sh/uv:1910"], "answerable": true, "thread_reply": true}
