@@ -542,3 +542,55 @@ D21 found a miss and assumed the gap meant "ranks lower". It does more than that
 Hybrid retrieval — a lexical signal fused with the embedding — now has 11 measured instances and an effect size to tune against, rather than the single anecdote D21 had. Specifically it must fix mode 1 and mode 3; no reranker can help, because both fail on threads that were never in the candidate set.
 
 **It does not license retuning the threshold.** Mode 2 looks like a threshold problem and is not: lowering the bar to admit `#6298` at 0.389 would admit genuinely unanswerable questions too, and abstention accuracy is currently 100% across nine negatives. The score is low because retrieval is wrong, not because the bar is high.
+
+> **Partly wrong — see D23.** The diagnosis holds. The prescribed remedy does not: hybrid retrieval was built and measured worse than dense alone at every setting swept, and the two flagship failures turn out to have no lexical signal to recover.
+
+---
+
+## D23 — Hybrid retrieval: built, measured, not adopted
+
+**Decision.** (2026-08-01) Dense-only retrieval stays in the request path. Lexical search and RRF fusion are implemented, swept across ~20 configurations, and left unwired, because every one of them measured worse than dense alone on Recall@10.
+
+**This entry is a negative result and is recorded at the same length as a positive one.** D22 closed with "this is the case for hybrid retrieval". That was a prediction dressed as a conclusion, and writing it down is what made testing it cheap.
+
+### What was built
+
+- `chunks.tsv`, a `GENERATED ALWAYS` tsvector column plus a GIN index, so the lexical index cannot drift from the text and no ingest code has to know it exists.
+- `lexeme_df`, corpus document frequencies from `ts_stat` (32,990 lexemes, 1.7s to rebuild). Needed because **Postgres `ts_rank` has no IDF** — it ranks by term frequency, so an OR-query over a natural sentence is dominated by whichever common words repeat. For *"why doesn't a newly published package show up straight away"* the lexemes include `uv` (3,382 of 4,149 chunks), `packag` (2,111) and `doesn` (905) alongside the single term that discriminates, `publish` (209). Query terms are now filtered to the rare ones before the tsquery is built.
+- `retrieve_hybrid`, RRF over the two rankings, with the dense cosine preserved as `score` so abstention's calibration is untouched.
+- `scripts/sweep_hybrid.py`, which embeds the golden set once and replays retrieval across configurations. That is what made a real sweep affordable instead of hand-tuning on five examples.
+
+### What it measured
+
+| config | ALL @1 | @10 | CORPUS @1 | @10 | NEW @1 | @10 |
+|---|---|---|---|---|---|---|
+| **dense only** | 60.9% | **96.9%** | 71.7% | **100%** | 9.1% | **81.8%** |
+| lex 0.25, no gate | 59.4% | 95.3% | 66.0% | 98.1% | **27.3%** | 81.8% |
+| lex 1.0, no gate | 50.0% | 87.5% | 56.6% | 94.3% | 18.2% | 54.5% |
+| dense-confidence gate 0.60 | 59.4% | 93.8% | 67.9% | 98.1% | 18.2% | 72.7% |
+| **lex 0.5, lexical gate 0.06** | **62.5%** | 92.2% | **71.7%** | 96.2% | 18.2% | 72.7% |
+
+The best configuration holds corpus Recall@1 exactly level and doubles the newcomer slice — and still **drops corpus Recall@10 from 100% to 96.2%**. It buys one newcomer-phrased question at rank 1 by pushing two corpus-phrased ones out of the candidate set completely. For a system that extracts an answer from the top ten, losing candidates is the more expensive side of that trade.
+
+### Why it fails, specifically
+
+**The lexical retriever is high-variance, not weak.** Measured alone: Recall@1 35.9%, Recall@10 68.8%. On the newcomer slice its rank-1 accuracy is **18.2%, better than dense's 9.1%** — but its Recall@10 there is **27.3% against dense's 81.8%**. It is precise when the rare terms hit and silent otherwise. RRF fuses *ranks*, so it hands that silence the same standing as the signal.
+
+Gating on the lexical side (only fuse when lexical actually fired) works better than gating on dense confidence, and still is not enough: with a fixed budget of ten results, admitting a second noisy signal costs more than its occasional rescue returns.
+
+**And the failures that motivated the work are not lexically recoverable at all.** `#505`'s only discriminative term present is `publish`, in one chunk. `#8157`'s terms — `like`, `look`, `resolv`, `tri`, `thing` — are all common, so after IDF filtering there is nothing left to match on. Their answers use different words from the question, which is the same wall dense retrieval hit. *A lexical retriever cannot bridge a vocabulary gap where the vocabulary is absent from both sides.*
+
+### Where tuning stopped, and why
+
+Three sweeps, roughly twenty configurations, against 64 questions of which **11** are the newcomer slice. At that size a one-question change moves the newcomer figure by 9 points. Continuing until something looked good would have been fitting the harness, not the problem — the same failure D20 named for golden sets, arrived at from the other direction.
+
+### What the evidence actually points to
+
+The gap is semantic, not lexical: *"newly published package doesn't show up"* has to reach a thread about `max-age` cache headers, and no term-matching scheme spans that. The remedies that address it operate on meaning:
+
+- **doc2query** — generate the questions each chunk answers, embed *those* alongside the chunk. It puts newcomer phrasing on the index side, where it can be produced once at ingest rather than guessed at query time. Nova Lite is already in the pipeline for extraction.
+- **HyDE** — expand the query into a hypothetical answer before embedding, so the query lands in the corpus's vocabulary space rather than the asker's.
+
+Both are testable with `sweep_hybrid.py` unchanged, which is the main reason this work is being kept rather than reverted.
+
+**Kept, not deleted.** The schema, the IDF table and the sweep harness are what the next attempt needs; re-deriving them to reach the same conclusion would be waste. There is deliberately no feature flag, because a flag would imply this is ready to switch on.

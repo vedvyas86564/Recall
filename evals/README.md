@@ -94,6 +94,20 @@ operators are monotonically related and rank identically. That argument is
 recorded in the commit rather than backed by a run, because at the time there
 was no corpus to run against.
 
+## Sweeping retrieval settings
+
+`backend/scripts/sweep_hybrid.py` embeds every answerable question once and
+replays retrieval across configurations, reporting Recall@1/@10 overall and split
+by phrasing. Use it instead of hand-checking a few examples — the relevance
+threshold was first set by intuition and was wrong by 27 points (D12), and the
+hybrid-retrieval weights looked promising on five hand-picked cases and measured
+worse than dense alone across the whole set (D23).
+
+**Know when to stop.** The newcomer slice is 11 questions, so one question moves
+it by 9 points. Sweeping until a configuration looks good is fitting the harness
+rather than the problem — the same failure as writing a golden set from
+retrieval's own output, approached from the other side.
+
 ## Refreshing the set after the corpus grows
 
 `expect_sources` enumerates the valid sources *in the corpus as it was when the
