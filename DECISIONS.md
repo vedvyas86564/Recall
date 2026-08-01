@@ -499,3 +499,46 @@ It is also, precisely, the product's own thesis turned on itself. Canopy exists 
 **What this costs.** The demo materials now quote 98.1% / 70.4% / 73.2% instead of 100% / 90.9% / 87.7%. Those are the honest numbers, and the story attached to them — *we made our own test harder and reported the drop* — is worth more than the figures it replaced.
 
 **Still owed.** Coverage is 16%, not enough. The questions skew toward threads with clear decisions; bug reports without resolutions are barely represented. And the vocabulary-gap failure has exactly one measured instance — before building hybrid retrieval against it, there should be a handful more, written the same deliberate way.
+
+> **Done — see D22.** Ten more, as matched pairs. The effect is far larger than one instance suggested: on newcomer-phrased questions Recall@1 is **9.1%** against **71.7%** on corpus-phrased ones.
+
+---
+
+## D22 — Measure the vocabulary gap properly before building against it
+
+**Decision.** (2026-08-01) Added 10 newcomer-phrased questions as **matched pairs** — each targets a thread that already has a question phrased in the corpus's own vocabulary, so the expected source is held fixed and the only variable is wording. All ten went in regardless of how they scored.
+
+### Result
+
+| slice | n | Recall@1 | Recall@10 | wrongly refused |
+|---|---|---|---|---|
+| phrased like the corpus | 53 | 71.7% | **100%** | 1.9% |
+| phrased like a newcomer | 11 | **9.1%** | **81.8%** | **9.1%** |
+| all answerable | 64 | 60.9% | 96.9% | 3.1% |
+
+**8 of 10 pairs degraded, 0 improved, 2 unchanged.** Mean top score fell 0.619 → 0.552; against the 0.44 threshold that is **37% of the available headroom consumed by phrasing alone**.
+
+Retrieval is not mediocre. It is excellent when the asker knows the words — Recall@10 is still exactly 100% on that slice — and poor when they do not. One number averaging the two describes neither.
+
+### Three distinct failure modes, not one
+
+D21 found a miss and assumed the gap meant "ranks lower". It does more than that:
+
+1. **Never retrieved.** `#8157` — *"Resolving takes ages and it looks like it's trying hundreds of things"* falls outside the top ten; the jargon twin is rank 1.
+2. **Wrongly refused.** `#6298` — *"Where do I change the release number when I'm about to publish?"* scores **0.389 and abstains**. Its twin, *"How do you bump a project's version with uv?"*, scores 0.671 at rank 1. Same thread, same corpus. **The abstention behaviour — the thing this product is differentiated on — misfires precisely on the user it exists to serve.** That is the most serious finding in this log.
+3. **Confidently answered from the wrong source.** `#505` retrieves nothing from the right thread yet still scores 0.647, comfortably clear of the threshold, so it answers from whatever else it found. Worse than a refusal: no signal reaches the user that anything went wrong.
+
+### Method notes
+
+**Matched pairs, not lone probes.** A single newcomer question conflates "is this thread retrievable" with "is it retrievable *from these words*". Pairing holds the target fixed.
+
+**Two methods tried and rejected**, both recorded because both were tempting:
+
+- *Screening candidates by word overlap with the target thread.* Measured against a full thread, ordinary words ("install", "package", "version") appear somewhere in nearly all of them, so genuinely-reworded questions score as high-overlap and near-paraphrases score low. The filter rejected 9 of 10 questions that turned out to be real probes. Overlap against a long document does not predict retrieval, and the filter was discarded rather than trusted.
+- *Keeping only the questions that fail.* That manufactures the failure rate the set exists to measure. All ten went in; the two that did not degrade are the control, and without them the other eight mean nothing.
+
+### What this licenses
+
+Hybrid retrieval — a lexical signal fused with the embedding — now has 11 measured instances and an effect size to tune against, rather than the single anecdote D21 had. Specifically it must fix mode 1 and mode 3; no reranker can help, because both fail on threads that were never in the candidate set.
+
+**It does not license retuning the threshold.** Mode 2 looks like a threshold problem and is not: lowering the bar to admit `#6298` at 0.389 would admit genuinely unanswerable questions too, and abstention accuracy is currently 100% across nine negatives. The score is low because retrieval is wrong, not because the bar is high.

@@ -153,3 +153,25 @@ So the set skews optimistic by construction, and the fix is to deliberately
 include questions phrased the way someone who has *not* read the thread would
 phrase them. When one of those misses, that is the honest signal — an easy hit on
 a question full of the thread's own jargon proves much less.
+
+### Matched pairs
+
+A lone newcomer-phrased question conflates two things: whether the thread is
+retrievable at all, and whether it is retrievable *from those words*. Pairing
+separates them. Write two questions against the same `expect_sources` — one as
+someone who has read the thread would ask, one as someone with the problem and
+none of the vocabulary would — and the only variable left is the wording.
+
+Questions tagged `newcomer_phrasing: true` are the second half of such a pair.
+
+**Two ways to get this wrong, both tempting:**
+
+- *Screening candidates by word overlap with the thread.* Tried and discarded:
+  measured against a full thread, almost every ordinary word ("install",
+  "package", "version") appears somewhere, so a genuinely differently-phrased
+  question scores as high-overlap and a near-paraphrase can score low. The metric
+  ranked 9 of 10 real probes as unusable. Overlap against a long document does
+  not predict retrieval.
+- *Keeping only the questions that fail.* This manufactures the failure rate the
+  set exists to measure. Write the pair, add it, report whatever it scores. The
+  ones that pass are the control — without them the failures mean nothing.

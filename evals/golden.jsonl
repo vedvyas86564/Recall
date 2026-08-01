@@ -70,7 +70,7 @@
 {"q": "What makes uv backtrack through many versions of the wrong package?", "expect_sources": ["github:astral-sh/uv:8157"], "answerable": true}
 {"q": "Why can't --exclude-newer be used with dependencies hosted on Azure or GitLab?", "expect_sources": ["github:astral-sh/uv:16813"], "answerable": true}
 {"q": "How do you disable exclude-newer for one specific package?", "expect_sources": ["github:astral-sh/uv:16813"], "answerable": true, "thread_reply": true}
-{"q": "Why doesn't a newly published package show up in uv straight away?", "expect_sources": ["github:astral-sh/uv:505"], "answerable": true}
+{"q": "Why doesn't a newly published package show up in uv straight away?", "expect_sources": ["github:astral-sh/uv:505"], "answerable": true, "newcomer_phrasing": true}
 {"q": "Were cross-platform lock files planned for the uv pip interface?", "expect_sources": ["github:astral-sh/uv:3347"], "answerable": true}
 {"q": "Why were named dependency groups held back from the first stable release?", "expect_sources": ["github:astral-sh/uv:5632"], "answerable": true, "thread_reply": true}
 {"q": "Is there a way to record installed uv tools in a file that can be committed to git?", "expect_sources": ["github:astral-sh/uv:12533"], "answerable": true, "thread_reply": true}
@@ -80,3 +80,16 @@
 {"q": "Which cloud provider hosts our staging environment?", "expect_sources": [], "answerable": false}
 {"q": "What is the notice period in our standard employment contract?", "expect_sources": [], "answerable": false}
 {"q": "Who owns the runbook for a failed production deploy?", "expect_sources": [], "answerable": false}
+
+// --- Newcomer-phrased twins, added 2026-07-31. Each targets a thread that
+// --- already has a question phrased in the corpus's own vocabulary. ------
+{"q": "My editor keeps saying it can't find the libraries I installed. How do I fix that?", "expect_sources": ["github:astral-sh/uv:9637"], "answerable": true, "newcomer_phrasing": true}
+{"q": "Our builds fail maybe one time in ten with a network error, then pass when we run them again. Is there a setting for that?", "expect_sources": ["github:astral-sh/uv:3514"], "answerable": true, "newcomer_phrasing": true}
+{"q": "A library says it doesn't work on my Python version even though it probably does. Why does that happen?", "expect_sources": ["github:astral-sh/uv:4022"], "answerable": true, "newcomer_phrasing": true}
+{"q": "Our internal package mirror has a certificate our machines don't trust. Can I still install from it?", "expect_sources": ["github:astral-sh/uv:1339"], "answerable": true, "newcomer_phrasing": true}
+{"q": "How do I see what I could update in my project?", "expect_sources": ["github:astral-sh/uv:2150"], "answerable": true, "newcomer_phrasing": true}
+{"q": "Where do I change the release number when I'm about to publish?", "expect_sources": ["github:astral-sh/uv:6298"], "answerable": true, "newcomer_phrasing": true}
+{"q": "Resolving takes ages and it looks like it's trying hundreds of things. What is it doing?", "expect_sources": ["github:astral-sh/uv:8157"], "answerable": true, "newcomer_phrasing": true}
+{"q": "My colleague gets permission denied on the folder we both point at. Why?", "expect_sources": ["github:astral-sh/uv:5496"], "answerable": true, "newcomer_phrasing": true}
+{"q": "It tells me there is no Python available, but I can run Python fine from the same shell.", "expect_sources": ["github:astral-sh/uv:10711"], "answerable": true, "newcomer_phrasing": true}
+{"q": "How do I make sure everyone on the team ends up with the same command-line tools?", "expect_sources": ["github:astral-sh/uv:12533"], "answerable": true, "newcomer_phrasing": true}

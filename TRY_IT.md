@@ -100,24 +100,33 @@ structural: a very specific question is narrower than the thread's overall topic
 so it scores lower than a vague question about the same thread would. A reranking
 step is the fix.
 
-**It can't find an answer you ask for in your own words.**
+**It struggles when you ask in your own words — this is the big one.**
 
-> *"Why doesn't a newly published package show up in uv straight away?"*
+Try these two. They have the same answer, in the same thread:
 
-The answer is in the corpus — a thread about overriding the `max-age` response
-header, because PyPI's cache means a version you can see on the website isn't
-visible to your client for ten minutes. Ask it that way and the thread does not
-appear in the top ten at all.
+> *"How do you bump a project's version with uv?"* → answers, top source, 0.671
+>
+> *"Where do I change the release number when I'm about to publish?"* → **refuses**, 0.389
 
-The reason is plain once you look: that thread says "max-age", "stale" and
-"10 min", and never says "newly published", "straight away" or "immediately".
-Embedding search matches how a question is *worded*, and the person who most
-needs the answer is exactly the person who doesn't know the vocabulary yet.
+Or these:
 
-This one is worth more than the first. Every question in the original evaluation
-set was written while reading the thread it came from, so all of them inherited
-the corpus's own words and all of them passed. It only showed up once questions
-were deliberately written the way a newcomer would ask.
+> *"What makes uv backtrack through many versions of the wrong package?"* → top source
+>
+> *"Resolving takes ages and it looks like it's trying hundreds of things."* → doesn't find it at all
+
+Embedding search matches how a question is *worded*. The threads say "bump",
+"backtrack", "max-age"; you say "release number", "takes ages", "straight away".
+The person who most needs the answer is exactly the person who doesn't know the
+vocabulary yet — which is awkward, given that's who this is built for.
+
+We measured it by writing ten questions twice, once in each style, against the
+same expected source. Eight of the ten got worse; none got better. Rank-one
+accuracy went from 71.7% to 9.1%.
+
+It only showed up because we went looking. Every question in the original
+evaluation set had been written while reading its source thread, so all of them
+borrowed that thread's words and all of them passed. Hybrid retrieval — keyword
+matching alongside the semantic search — is the fix, and it's next.
 
 ---
 
@@ -158,12 +167,14 @@ all ten would imply evidence that wasn't used.
 
 ## Where the numbers come from
 
-63 evaluation questions written by reading the corpus, nine of them deliberately
+73 evaluation questions written by reading the corpus, nine of them deliberately
 unanswerable:
 
-| | |
-|---|---|
-| Correct source in top 10 | 98.1% |
-| Correct source ranked first | 70.4% |
-| Correct refusals | 100% |
-| Wrong refusals | 1.9% |
+Split by how the question is worded, because the difference is large:
+
+| | asked in the project's words | asked in your own words |
+|---|---|---|
+| Correct source in top 10 | 100% | 81.8% |
+| Correct source ranked first | 71.7% | 9.1% |
+| Correct refusals | 100% | 100% |
+| Wrong refusals | 1.9% | 9.1% |

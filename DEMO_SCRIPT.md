@@ -139,43 +139,53 @@ speaking. Let them read it.]`
 
 > "That's a claim, so we measure it rather than asserting it.
 >
-> We wrote sixty-three evaluation questions by reading the corpus — including
+> We wrote seventy-three evaluation questions by reading the corpus — including
 > nine that are deliberately unanswerable. Every retrieval change runs against
 > them."
 
 `[Optional: have these numbers on a card or a slide. Don't make them squint.]`
 
-| | |
-|---|---|
-| Recall@10 | **98.1%** |
-| Recall@1 | 70.4% |
-| Correct refusals | **100%** |
-| Wrong refusals | **1.9%** |
+| | in the project's words | in your own words |
+|---|---|---|
+| Correct source in top 10 | **100%** | 81.8% |
+| Correct source ranked first | 71.7% | 9.1% |
+| Correct refusals | **100%** | **100%** |
+| Wrong refusals | 1.9% | 9.1% |
 
-> "Correct refusals, a hundred percent — that's the number I care most about.
-> Wrong refusals, under two percent. And for ninety-eight percent of answerable
-> questions the right source is in the top ten."
+> "Correct refusals, a hundred percent, in both columns — that's the number I
+> care most about, and it doesn't move.
+>
+> Now look at the two columns, because that's the interesting part."
 
 **Then the honest part. Do not skip this — it does more for you than the numbers:**
 
-> "Those numbers used to be better, and I want to tell you why they got worse.
+> "Ask a question using the project's own vocabulary and the right source is in
+> the top ten a hundred percent of the time. Ask the same question in plain
+> language and that drops to eighty-two — and rank-one accuracy falls off a
+> cliff, seventy-two percent to nine.
 >
-> Recall@10 was a hundred percent. Then we noticed something about how we'd
-> written the questions: we wrote each one while reading the thread it came from.
-> So every question used the thread's own vocabulary, and of course it found the
-> thread.
+> We found that because we got suspicious of our own eval. Every question in it
+> had been written while reading the thread it came from — so every question
+> borrowed that thread's words, and of course it found the thread. Recall@10 sat
+> at a hundred percent for weeks and we thought that was a result about the
+> system. It was a result about us.
 >
-> So we rewrote them the way somebody who hasn't read anything would ask. Our
-> perfect score stopped being perfect. Nothing about the system changed — the
-> measurement got honest.
+> So we wrote ten questions twice. Once as somebody who has read the thread,
+> once as somebody with the problem and none of the words. Eight of the ten got
+> worse. None got better.
 >
-> Here's the one that stings. Ask 'why doesn't a newly published package show up
-> straight away' and it finds nothing, even though the answer is right there. The
-> thread says 'max-age' and 'stale'. It never says 'newly published'. The person
-> who most needs that answer is exactly the person who doesn't know the word yet.
->
-> That's the actual onboarding problem, and we only found it because we went
-> looking for ways our own eval was flattering us."
+> Here's the one that stings. Ask how to bump a project's version and it nails
+> it. Ask 'where do I change the release number before I publish' — same answer,
+> same thread — and it scores below our threshold and *refuses*. Our refusal
+> behaviour is the thing I just told you is our differentiator, and it misfires
+> on exactly the person we built this for."
+
+`[Let that land before continuing.]`
+
+> "That's the real onboarding problem, stated precisely. The fix is hybrid
+> retrieval — keyword matching alongside the semantic search — and it's the next
+> thing we build. I'd rather show you the gap and the plan than one blended
+> number that hides both."
 
 **Why say this:** every technical founder claims rigor. Reporting that your
 numbers went *down* because you made your own test harder is the only version of
@@ -281,9 +291,11 @@ it, name it as the three percent and move on.
   about that is what makes "verify it yourself" land.
 - **Don't say Slack ingestion is done.** The parser exists and is tested; the
   workspace connection is not built.
-- **Citation precision is 73.2%, and quote it as a floor.** It measures
+- **Citation precision is 67.4%, and quote it as a floor.** It measures
   agreement with our golden set, and a citation can genuinely support a claim
-  without being one we anticipated.
+  without being one we anticipated. It fell from 73% when we added the
+  newcomer-phrased questions — if you cite the wrong thread you also cite it
+  wrongly, so that drop is the same problem counted twice, not a second one.
 - **Don't say "AI-powered."** Everything is. Say what it does.
 - **Don't oversell the corpus size.** Four hundred threads is a demo. If someone
   pushes on scale, talk about pgvector and batched embedding, not about volume
