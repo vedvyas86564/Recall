@@ -29,17 +29,17 @@ from services import retrieval  # noqa: E402
 ORG = os.environ.get("ORG_ID", "00000000-0000-0000-0000-000000000001")
 GOLDEN = Path(__file__).resolve().parents[2] / "evals" / "golden.jsonl"
 
-# (label, lexical_weight, rrf_k, dense_confidence_gate).
-# weight 0 is dense-only, the control. gate 1.0 means "never gate".
+# (label, lex_weight, rrf_k, lex_gate, docq_weight, docq_dense_gate)
 CONFIGS = [
-    ("dense only",           0.0, 60, 0.00),
-    ("lex1.0 gate 0 (none)", 1.0, 60, 0.00),
-    ("lex1.0 lexgate .04",   1.0, 60, 0.04),
-    ("lex1.0 lexgate .06",   1.0, 60, 0.06),
-    ("lex1.0 lexgate .08",   1.0, 60, 0.08),
-    ("lex0.5 lexgate .06",   0.5, 60, 0.06),
-    ("lex2.0 lexgate .08",   2.0, 60, 0.08),
+    ("dense only",          0.0, 60, 0.00, 0.0, 1.0),
+    ("d2q 2.0 fused",       0.0, 60, 0.00, 2.0, 1.0),
+    ("AUGMENT +2",          0.0, 60, 0.00, 0.0, 1.0),
+    ("AUGMENT +4",          0.0, 60, 0.00, 0.0, 1.0),
+    ("AUGMENT +6",          0.0, 60, 0.00, 0.0, 1.0),
 ]
+# Augmenting configs are dispatched by label -- they do not fuse, so the weight
+# columns above do not apply to them.
+AUGMENT = {"AUGMENT +2": 2, "AUGMENT +4": 4, "AUGMENT +6": 6}
 
 
 def load_golden():
@@ -94,15 +94,21 @@ async def main() -> int:
     print(header)
     print("-" * len(header))
 
-    for label, weight, rrf_k, gate in CONFIGS:
+    for label, weight, rrf_k, gate, dqw, dqg in CONFIGS:
         retrieval.LEXICAL_WEIGHT = weight
         retrieval.RRF_K = rrf_k
         retrieval.LEXICAL_GATE = gate
+        retrieval.DOCQUERY_WEIGHT = dqw
+        retrieval.DOCQUERY_DENSE_GATE = dqg
 
         ranks = {}
         for q in questions:
             expected = set(q["expect_sources"])
-            if weight == 0.0:
+            if label in AUGMENT:
+                chunks = await retrieval.retrieve_augmented(
+                    vectors[q["q"]], ORG, k=10, extra=AUGMENT[label]
+                )
+            elif weight == 0.0 and dqw == 0.0:
                 chunks = await retrieval.retrieve_top_k(vectors[q["q"]], ORG, k=10)
             else:
                 chunks = await retrieval.retrieve_hybrid(

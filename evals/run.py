@@ -48,7 +48,7 @@ from services.eval_metrics import (  # noqa: E402
     summarize,
 )
 from services.nova_extract import extract_decisions  # noqa: E402
-from services.retrieval import retrieve_top_k  # noqa: E402
+from services.retrieval import retrieve_augmented  # noqa: E402
 
 GOLDEN = REPO_ROOT / "evals" / "golden.jsonl"
 RESULTS_DIR = REPO_ROOT / "evals" / "results"
@@ -115,7 +115,7 @@ async def run_one(q: dict, org_id: str, top_k: int, retrieval_only: bool) -> Que
 
     try:
         qvec = await asyncio.to_thread(embed_one, q["q"], purpose="TEXT_RETRIEVAL")
-        retrieved = await retrieve_top_k(qvec, org_id, k=top_k)
+        retrieved = await retrieve_augmented(qvec, org_id, k=top_k)
 
         result.retrieved_refs = [r for r in (source_ref(c) for c in retrieved) if r]
         abstained, top_score = should_abstain(retrieved)

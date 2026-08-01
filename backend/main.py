@@ -22,7 +22,7 @@ from services.answer import attach_citations
 from services.bedrock_embed import embed_one
 from services.nova_extract import extract_decisions
 from services.db import get_pool, close_pool
-from services.retrieval import retrieve_top_k
+from services.retrieval import DOC2QUERY_EXTRA, retrieve_augmented, retrieve_top_k
 from services.ingest import ingest_github_threads, ingest_slack_export
 from services.rampup import build_reading_list
 from services.references import reference_counts
@@ -183,7 +183,7 @@ async def query(req: QueryRequest, request: Request):
     top_k = req.top_k or 8
 
     qvec = embed_one(req.question, purpose="TEXT_RETRIEVAL")
-    top = await retrieve_top_k(qvec, org_id, k=top_k)
+    top = await retrieve_augmented(qvec, org_id, k=top_k, extra=DOC2QUERY_EXTRA)
 
     # Decide on retrieval quality before calling the generator. Asking the model
     # whether it can answer invites it to say yes and confabulate, which is the

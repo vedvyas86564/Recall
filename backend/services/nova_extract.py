@@ -125,16 +125,28 @@ Rules:
     return body
 
 
-def extract_decisions(question: str, chunks: list[dict]) -> dict:
-    body = build_request_body(question, chunks)
+def invoke_json(body: dict) -> dict:
+    """
+    Send a request body to Nova Lite and parse its JSON reply.
 
+    Shared so callers do not each reimplement the response unwrapping below --
+    Nova has returned three different envelope shapes across versions, and a
+    second copy of that guesswork is a second thing to get wrong.
+    """
     resp = _bedrock().invoke_model(
         modelId=MODEL_ID,
         body=json.dumps(body).encode("utf-8"),
         accept="application/json",
         contentType="application/json",
     )
+    return _unwrap(resp)
 
+
+def extract_decisions(question: str, chunks: list[dict]) -> dict:
+    return invoke_json(build_request_body(question, chunks))
+
+
+def _unwrap(resp) -> dict:
     payload = json.loads(resp["body"].read().decode("utf-8"))
 
     if "output" in payload:

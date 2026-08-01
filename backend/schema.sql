@@ -119,6 +119,29 @@ CREATE TABLE IF NOT EXISTS lexeme_df (
     PRIMARY KEY (org_id, lexeme)
 );
 
+-- 8c. Generated questions per thread (doc2query), for the vocabulary gap.
+--
+-- Dense retrieval matches phrasing, and the asker who most needs an answer is
+-- the one who does not know the corpus's words for it. Rather than translating
+-- the query at request time, the thread is translated into plain language once
+-- at ingest: the questions it answers, phrased as a newcomer would ask them,
+-- embedded and searched alongside the chunks.
+--
+-- Rebuilt by scripts/build_doc2query.py. Every thread is enriched or none is --
+-- partial coverage would give enriched threads an advantage unrelated to
+-- relevance.
+CREATE TABLE IF NOT EXISTS doc_queries (
+    id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    org_id      uuid NOT NULL,
+    document_id uuid NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+    question    text NOT NULL,
+    embedding   vector(1024),
+    created_at  timestamptz DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_doc_queries_org ON doc_queries(org_id);
+CREATE INDEX IF NOT EXISTS idx_doc_queries_doc ON doc_queries(document_id);
+
 -- 9. Vector index
 --
 -- Opclass MUST match the operator used in services/retrieval.py. It queries with

@@ -594,3 +594,62 @@ The gap is semantic, not lexical: *"newly published package doesn't show up"* ha
 Both are testable with `sweep_hybrid.py` unchanged, which is the main reason this work is being kept rather than reverted.
 
 **Kept, not deleted.** The schema, the IDF table and the sweep harness are what the next attempt needs; re-deriving them to reach the same conclusion would be waste. There is deliberately no feature flag, because a flag would imply this is ready to switch on.
+
+---
+
+## D24 — doc2query: the mechanism works, the shipped metric can't see it, citations get worse
+
+**Decision.** (2026-08-01) Generated newcomer-phrased questions for all 392 threads and indexed them. **Left off by default** (`DOC2QUERY_EXTRA=0`). The vocabulary bridging demonstrably works; wiring it into the pipeline cost 4.9 points of citation precision and produced no gain the shipped eval can measure.
+
+### What was built
+
+At ingest, Nova Lite is asked what questions each thread answers, *phrased as someone who has not read it would ask* — the prompt explicitly forbids reusing the thread's jargon, because a generated question that echoes the source is worthless for this. Those questions are embedded into `doc_queries` and searched alongside the chunks.
+
+All 392 threads, 1,960 questions, 0 failures, 153 seconds. **Coverage had to be total**: enriching only threads the golden set names would hand them an advantage no other thread has, and the numbers would measure the sampling.
+
+The generated questions are the right shape. For `#171 "Add support for pinning a package to a specific index"`:
+
+> *"Why does my tool sometimes use the public library even when I told it to look at my private server first?"*
+
+No jargon: "public library" for PyPI, "private server" for a custom index. That is the asker's language, which is the entire point.
+
+### It bridges the gap — verified
+
+`#8157` was D22's flagship "never retrieved" failure: *"Resolving takes ages and it looks like it's trying hundreds of things"* found nothing, because the thread says "backtracking" and the question doesn't. It is now retrieved, via the generated *"Why does my tool keep picking very old versions of a package that I don't want"*. Lexical search could never have done this — D23 established that thread has no discriminative term in common with the question at all.
+
+`#505` is still lost, and not for want of a good question: it generated *"How can I make sure my package manager always gets the newest version without waiting?"*, which is squarely on target. It simply ranks below other threads' questions. Appending 4 or 6 instead of 2 does not reach it.
+
+### Where the measurement went wrong
+
+Fusing doc2query into RRF traded newcomer recall for corpus recall at every weight, and a dense-confidence gate did not separate them — the score distributions overlap. So the design changed to *augmentation*: leave dense's top-k untouched and append threads it missed. Displacement was the only reason corpus retrieval suffered, and appending displaces nothing.
+
+The retrieval-only sweep then said:
+
+| | ALL @1 | @10 | CORPUS @1 | @10 | NEW @1 | @10 |
+|---|---|---|---|---|---|---|
+| dense only | 60.9% | 96.9% | 71.7% | 100% | 9.1% | 81.8% |
+| augment +2 | 60.9% | **98.4%** | 71.7% | 100% | 9.1% | **90.9%** |
+
+Strictly dominant, and I said so. **The full pipeline then measured Recall@10 unchanged at 96.9% and citation precision down from 67.4% to 62.5%.**
+
+The two numbers disagree because they are not the same metric. `evals/run.py` scores `retrieved_refs[:k]` by **chunk position**; the sweep ranked **deduplicated threads**. Ten chunks routinely come from four or five threads, so a thread appended at chunk position 11 is inside the sweep's top ten and outside the eval's. The gain was real under one definition and invisible under the other, and the flattering one got quoted first because it was the one already written.
+
+*Two functions, one word, different meanings — and no test would ever have caught it.*
+
+### Why it is off
+
+Citation precision fell 4.9 points, which is larger than the ~2% run-to-run variance left after D20 pinned extraction to temperature 0. Some of that is golden-set artefact — an appended thread is by construction not in `expect_sources`, so citing it scores as wrong even when it is reasonable — and some is likely real, since the appended chunks have low cosine by definition and are weaker evidence.
+
+That mixture cannot be separated with what is currently measured, and **citation correctness is the claim this product is built on**. Trading it for recall that the shipped metric cannot see is the wrong trade, so the default is 0 and `retrieve_augmented(extra=0)` degrades to plain dense retrieval exactly.
+
+Abstention is untouched and provably so: `should_abstain` reads `max(score)` over dense cosines, and appended chunks score below the dense top by construction. Measured: 100% / 3.1%, identical.
+
+`/rampup` deliberately stays on dense-only — it applies a 0.44 relevance floor, which appended chunks would fail anyway.
+
+### What would settle it
+
+1. **Fix the metric disagreement.** Decide whether Recall@k means chunks or threads, and make both places say the same thing. For a product whose citations, reading lists and abstentions are all thread-level, threads is the defensible choice.
+2. **Judge the appended citations by reading them**, the way D20's candidates were judged. That splits the 4.9 points into artefact and regression instead of guessing at the ratio.
+3. Only then decide whether to turn it on.
+
+**Kept and enabled by one env var**, unlike D23's lexical work — the difference is that this mechanism is measured to work and the open question is downstream of it, not in it.

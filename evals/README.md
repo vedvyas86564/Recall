@@ -108,6 +108,16 @@ it by 9 points. Sweeping until a configuration looks good is fitting the harness
 rather than the problem — the same failure as writing a golden set from
 retrieval's own output, approached from the other side.
 
+**The sweep and this runner do not measure Recall@k the same way.** `run.py`
+scores `retrieved_refs[:k]` by **chunk position**; `sweep_hybrid.py` ranks
+**deduplicated threads**. Ten chunks routinely come from four or five threads, so
+a result at chunk position 11 is inside the sweep's top ten and outside this
+one's. At D24 that discrepancy turned a "strictly dominant" sweep result into no
+measurable change in the full pipeline.
+
+Before quoting a sweep number as a pipeline number, confirm the definitions
+agree — or run `run.py`, which is the one that scores the shipped path.
+
 ## Refreshing the set after the corpus grows
 
 `expect_sources` enumerates the valid sources *in the corpus as it was when the

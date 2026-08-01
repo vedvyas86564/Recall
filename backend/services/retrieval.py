@@ -42,6 +42,31 @@ LEXICAL_WEIGHT = float(os.environ.get("LEXICAL_WEIGHT", "0.5"))
 # condition the vocabulary gap produces. 1.0 disables the gate (always fuse).
 LEXICAL_GATE = float(os.environ.get("LEXICAL_GATE", "0.06"))
 
+# Pull of the doc2query retriever: generated newcomer-phrased questions per
+# thread, embedded and searched alongside the chunks. 0 disables it.
+DOCQUERY_WEIGHT = float(os.environ.get("DOCQUERY_WEIGHT", "0.0"))
+
+# Dense confidence above which doc2query is switched off.
+#
+# Generated questions are a thread-level, topical signal. When dense already has
+# a precise chunk match they drag whole threads in on general similarity and
+# displace it; when dense is floundering -- which is what newcomer phrasing does
+# to it -- they are the only thing that finds the right thread at all. So the
+# signal is applied exactly where dense is weak. 1.0 means never gate.
+DOCQUERY_DENSE_GATE = float(os.environ.get("DOCQUERY_DENSE_GATE", "1.0"))
+
+# How many doc2query-only threads to append after the dense results.
+#
+# DEFAULT 0 -- off. Retrieval-only measurement said +2 was strictly dominant
+# (newcomer Recall@10 81.8% -> 90.9%, nothing regressing). The full pipeline
+# disagreed: citation precision fell 67.4% -> 62.5%, and the recall gain did not
+# appear at all, because the eval measures retrieved_refs[:k] by chunk position
+# and appended items sit at 11 and 12. Two metrics, two different definitions of
+# the same word, and the flattering one was quoted first.
+#
+# Set to 2 to enable. +4 and +6 rescued nothing further than +2 did.
+DOC2QUERY_EXTRA = int(os.environ.get("DOC2QUERY_EXTRA", "0"))
+
 
 async def retrieve_top_k(
     query_embedding: list[float],
@@ -242,6 +267,35 @@ async def retrieve_hybrid(
             ORDER BY ts_rank(c.tsv, q.tsq) DESC
             LIMIT $5
         ),
+        docq AS (
+            -- Best generated question per thread. Each thread carries several,
+            -- phrased as a newcomer would ask; the closest one stands for the
+            -- thread. min() over its questions rather than a per-question rank,
+            -- so a thread with more questions gets no advantage from volume.
+            SELECT dq.document_id, min(dq.embedding <=> $3::vector) AS dist
+            FROM doc_queries dq
+            WHERE dq.org_id = $1::uuid AND $10 > 0
+            GROUP BY dq.document_id
+            ORDER BY dist
+            LIMIT $5
+        ),
+        docq_ranked AS (
+            SELECT document_id, dist, row_number() OVER (ORDER BY dist) AS rnk
+            FROM docq
+        ),
+        docq_chunks AS (
+            -- A generated question identifies a *thread*; the answer still has to
+            -- come from a chunk. Its best chunk by ordinary dense similarity is
+            -- the one carried forward, so this adds a way in without changing
+            -- what gets cited.
+            SELECT DISTINCT ON (dr.document_id)
+                   dr.document_id, dr.rnk, dr.dist, c.id AS chunk_id
+            FROM docq_ranked dr
+            JOIN chunks c     ON c.document_id = dr.document_id
+                             AND c.org_id = $1::uuid AND c.visibility = $4
+            JOIN embeddings e ON e.chunk_id = c.id
+            ORDER BY dr.document_id, e.embedding <=> $3::vector
+        ),
         gate AS (
             -- Lexical contributes only when it actually fired on a rare term.
             --
@@ -253,19 +307,25 @@ async def retrieve_hybrid(
             -- dense side instead was tried first and measured worse -- see
             -- DECISIONS.md D23.
             SELECT CASE WHEN COALESCE((SELECT max(lex_score) FROM lex), 0) >= $9
-                        THEN $8 ELSE 0.0 END AS lex_weight
+                        THEN $8 ELSE 0.0 END AS lex_weight,
+                   CASE WHEN COALESCE((SELECT max(dscore) FROM dense), 0) >= $11
+                        THEN 0.0 ELSE $10 END AS docq_weight
         ),
         fused AS (
             -- FULL OUTER JOIN, so a chunk either retriever found survives even
             -- if the other missed it entirely. That is the entire mechanism.
-            SELECT COALESCE(d.chunk_id, l.chunk_id) AS chunk_id,
+            SELECT COALESCE(d.chunk_id, l.chunk_id, dq.chunk_id) AS chunk_id,
                    d.rnk        AS dense_rank,
                    l.rnk        AS lex_rank,
                    l.lex_score  AS lex_score,
+                   dq.rnk       AS docq_rank,
+                   dq.dist      AS docq_dist,
                    COALESCE(1.0 / ($6 + d.rnk), 0)
-                 + g.lex_weight * COALESCE(1.0 / ($6 + l.rnk), 0) AS rrf
+                 + g.lex_weight * COALESCE(1.0 / ($6 + l.rnk), 0)
+                 + g.docq_weight * COALESCE(1.0 / ($6 + dq.rnk), 0) AS rrf
             FROM dense d
-            FULL OUTER JOIN lex l ON l.chunk_id = d.chunk_id
+            FULL OUTER JOIN lex l          ON l.chunk_id = d.chunk_id
+            FULL OUTER JOIN docq_chunks dq ON dq.chunk_id = COALESCE(d.chunk_id, l.chunk_id)
             CROSS JOIN gate g
         )
         SELECT
@@ -281,6 +341,8 @@ async def retrieve_hybrid(
             f.lex_score,
             f.dense_rank,
             f.lex_rank,
+            f.docq_rank,
+            f.docq_dist,
             f.rrf
         FROM fused f
         JOIN chunks c     ON c.id = f.chunk_id
@@ -298,6 +360,8 @@ async def retrieve_hybrid(
         k,
         LEXICAL_WEIGHT,
         LEXICAL_GATE,
+        DOCQUERY_WEIGHT,
+        DOCQUERY_DENSE_GATE,
     )
 
     results = []
@@ -306,7 +370,87 @@ async def retrieve_hybrid(
         item["lexical_score"] = float(r["lex_score"]) if r["lex_score"] is not None else 0.0
         item["dense_rank"] = int(r["dense_rank"]) if r["dense_rank"] is not None else None
         item["lexical_rank"] = int(r["lex_rank"]) if r["lex_rank"] is not None else None
+        item["docquery_rank"] = int(r["docq_rank"]) if r["docq_rank"] is not None else None
+        item["docquery_score"] = (1.0 - float(r["docq_dist"])) if r["docq_dist"] is not None else None
         item["fused_score"] = float(r["rrf"])
         item["matched_terms"] = terms
         results.append(item)
     return results
+
+
+async def retrieve_augmented(
+    query_embedding: list[float],
+    org_id: str,
+    k: int = 10,
+    extra: int = 4,
+    visibility: str = "public",
+) -> list[dict]:
+    """
+    Dense top-k, plus doc2query finds it missed appended after it.
+
+    Fusion was the wrong shape for this signal. Every fused configuration bought
+    newcomer-phrased recall by *displacing* dense results, and displacement is
+    the only reason corpus-phrased retrieval suffered -- dense's ordering was
+    already right for those questions, and something had to be evicted to make
+    room. Appending evicts nothing.
+
+    So dense's k results are returned untouched and in order, and up to `extra`
+    threads found only via generated questions are added behind them. Recall can
+    only rise; the cost is a slightly larger extraction context, which is a real
+    cost but a bounded and predictable one.
+
+    The appended items carry a true dense cosine like everything else, so a
+    thread rescued this way is visibly a poor dense match -- and abstention,
+    which reads the top score, is unaffected either way.
+    """
+    dense = await retrieve_top_k(query_embedding, org_id, k=k, visibility=visibility)
+    if extra <= 0:
+        return dense
+
+    pool = await get_pool()
+    vec_literal = "[" + ",".join(str(v) for v in query_embedding) + "]"
+    have_docs = {d["document_id"] for d in dense}
+
+    rows = await pool.fetch(
+        """
+        WITH docq AS (
+            SELECT dq.document_id, min(dq.embedding <=> $2::vector) AS dist
+            FROM doc_queries dq
+            WHERE dq.org_id = $1::uuid
+            GROUP BY dq.document_id
+            ORDER BY dist
+            LIMIT $3
+        )
+        SELECT DISTINCT ON (dqr.document_id)
+            c.id        AS chunk_id,
+            c.document_id,
+            c.chunk_index,
+            c.text,
+            c.metadata  AS chunk_metadata,
+            d2.title    AS doc_title,
+            d2.source,
+            d2.metadata AS doc_metadata,
+            1 - (e.embedding <=> $2::vector) AS score,
+            dqr.dist    AS docq_dist
+        FROM docq dqr
+        JOIN chunks c     ON c.document_id = dqr.document_id
+                         AND c.org_id = $1::uuid AND c.visibility = $4
+        JOIN documents d2 ON d2.id = c.document_id
+        JOIN embeddings e ON e.chunk_id = c.id
+        ORDER BY dqr.document_id, e.embedding <=> $2::vector
+        """,
+        org_id, vec_literal, k + extra, visibility,
+    )
+
+    additions = []
+    for r in sorted(rows, key=lambda r: r["docq_dist"]):
+        if str(r["document_id"]) in have_docs:
+            continue
+        item = _row_to_chunk(r)
+        item["docquery_score"] = 1.0 - float(r["docq_dist"])
+        item["found_by"] = "doc2query"
+        additions.append(item)
+        if len(additions) >= extra:
+            break
+
+    return dense + additions
