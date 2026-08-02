@@ -43,6 +43,7 @@ from services.citations import source_ref  # noqa: E402
 from services.db import close_pool  # noqa: E402
 from services.eval_metrics import (  # noqa: E402
     QuestionResult,
+    retrieved_refs as build_refs,
     compare,
     format_report,
     summarize,
@@ -117,7 +118,7 @@ async def run_one(q: dict, org_id: str, top_k: int, retrieval_only: bool) -> Que
         qvec = await asyncio.to_thread(embed_one, q["q"], purpose="TEXT_RETRIEVAL")
         retrieved = await retrieve_augmented(qvec, org_id, k=top_k)
 
-        result.retrieved_refs = [r for r in (source_ref(c) for c in retrieved) if r]
+        result.retrieved_refs = build_refs(retrieved)
         abstained, top_score = should_abstain(retrieved)
         result.abstained = abstained
         result.top_score = top_score

@@ -628,13 +628,15 @@ The retrieval-only sweep then said:
 | | ALL @1 | @10 | CORPUS @1 | @10 | NEW @1 | @10 |
 |---|---|---|---|---|---|---|
 | dense only | 60.9% | 96.9% | 71.7% | 100% | 9.1% | 81.8% |
-| augment +2 | 60.9% | **98.4%** | 71.7% | 100% | 9.1% | **90.9%** |
+| ~~augment +2~~ | 60.9% | ~~98.4%~~ | 71.7% | 100% | 9.1% | ~~90.9%~~ |
 
 Strictly dominant, and I said so. **The full pipeline then measured Recall@10 unchanged at 96.9% and citation precision down from 67.4% to 62.5%.**
 
 The two numbers disagree because they are not the same metric. `evals/run.py` scores `retrieved_refs[:k]` by **chunk position**; the sweep ranked **deduplicated threads**. Ten chunks routinely come from four or five threads, so a thread appended at chunk position 11 is inside the sweep's top ten and outside the eval's. The gain was real under one definition and invisible under the other, and the flattering one got quoted first because it was the one already written.
 
 *Two functions, one word, different meanings — and no test would ever have caught it.*
+
+> **Corrected in D25.** The struck row was wrong. Re-measured through the eval runner's own metric, `augment +2` scores exactly dense-only — 96.9% / 100% / 81.8% — which reconciles the sweep with the pipeline. D23's lexical table needed no correction: those configurations return exactly `k` chunks, so the two definitions agree there and only augmentation was ever affected. D25 also runs the equal-budget comparison that neither number represented.
 
 ### Why it is off
 
@@ -653,3 +655,44 @@ Abstention is untouched and provably so: `should_abstain` reads `max(score)` ove
 3. Only then decide whether to turn it on.
 
 **Kept and enabled by one env var**, unlike D23's lexical work — the difference is that this mechanism is measured to work and the open question is downstream of it, not in it.
+
+---
+
+## D25 — One definition of Recall@k, and the comparison it was hiding
+
+**Decision.** (2026-08-01) `Recall@k` counts **chunks**, not distinct threads. `evals/run.py` and `scripts/sweep_hybrid.py` now call one implementation, `services.eval_metrics.retrieved_refs`, and a test pins the distinction.
+
+**Why chunks.** `k` is a budget of chunks — exactly `k` of them reach the model — so chunk position is what determines whether the answer was actually available to answer from. Deduplicating first credits a thread sitting at chunk 11 as though it were inside the top ten. It is also the definition every historical figure in this log already used, so adopting it re-baselines nothing: only the two sweep tables were ever computed the other way.
+
+**What was actually wrong.** Re-measured under the shared metric:
+
+| | ALL @1 | @10 | CORPUS @1 | @10 | NEW @1 | @10 |
+|---|---|---|---|---|---|---|
+| dense only | 60.9% | 96.9% | 71.7% | 100% | 9.1% | 81.8% |
+| lex 0.25 no gate | 59.4% | 95.3% | 66.0% | 98.1% | 27.3% | 81.8% |
+| lex 1.0 no gate | 50.0% | 87.5% | 56.6% | 94.3% | 18.2% | 54.5% |
+| lex 0.5 lexgate .06 | 62.5% | 92.2% | 71.7% | 96.2% | 18.2% | 72.7% |
+| d2q 2.0 fused | 51.6% | 82.8% | 52.8% | 81.1% | 45.5% | 90.9% |
+| augment +2 | 60.9% | 96.9% | 71.7% | 100% | 9.1% | 81.8% |
+
+**Every lexical and fused row is identical to what D23 reported.** Those configurations return exactly `k` chunks, so deduplication never had anything to collapse — the bug could only bite when a retriever returned *more* than `k`, which is exactly and only what augmentation does. D23's conclusions stand untouched. The one corrected row, `augment +2`, now agrees precisely with the pipeline.
+
+### The comparison neither number represented
+
+Both figures were answering an unfair question. `retrieve_augmented(k=10, extra=2)` hands the model **twelve** chunks. Scoring that at @10 penalises it for results the model genuinely receives; scoring it against dense-at-10 in the pipeline flatters it with a larger context. At a fixed budget of twelve:
+
+| twelve chunks to the model | ALL @12 | CORPUS @12 | NEW @12 |
+|---|---|---|---|
+| dense k=12 | 96.9% | 100% | 81.8% |
+| dense 10 + 2 appended | **98.4%** | 100% | **90.9%** |
+| dense 8 + 4 appended | **98.4%** | 100% | **90.9%** |
+
+So the gain is real, and it survives displacing four dense results. But at a fixed budget of **ten** it disappears entirely — `dense 9+1`, `8+2` and `7+3` all score exactly dense-only. Shrinking the dense side widens the pool of documents eligible for appending, and the thread that mattered stops being in the top few.
+
+**The honest statement, which neither earlier number supported:** doc2query buys +1.5 points of overall recall and +9.1 on the newcomer slice, *by spending two more chunks of context*. It is not free, and it is not nothing.
+
+### What this changes
+
+D24's conclusion — off by default — stands, but for a better-stated reason. It is not "the gain was illusory"; it is "the gain costs a larger context, and the pipeline measured citation precision down 4.9 points at that size." That is a trade someone can now decide on, with both sides quantified.
+
+**The general lesson is the one worth keeping.** Two harnesses in the same repository printed different numbers under the same name for weeks. Nothing failed, no test broke, and the discrepancy only surfaced because a result looked too good and got checked against the pipeline. Shared vocabulary needs shared implementation — a metric defined twice is two metrics.
