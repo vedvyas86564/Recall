@@ -382,11 +382,17 @@ async def retrieve_augmented(
     query_embedding: list[float],
     org_id: str,
     k: int = 10,
-    extra: int = 4,
+    extra: int | None = None,
     visibility: str = "public",
 ) -> list[dict]:
     """
     Dense top-k, plus doc2query finds it missed appended after it.
+
+    `extra` defaults to DOC2QUERY_EXTRA rather than to a literal. A literal here
+    meant the eval runner, which omits the argument, measured a different
+    configuration than production, which passes it -- the harness would have
+    scored doc2query ON while the API served it OFF. Same shape of bug as the two
+    Recall@k definitions in D25: one setting, two places, no failure.
 
     Fusion was the wrong shape for this signal. Every fused configuration bought
     newcomer-phrased recall by *displacing* dense results, and displacement is
@@ -403,6 +409,9 @@ async def retrieve_augmented(
     thread rescued this way is visibly a poor dense match -- and abstention,
     which reads the top score, is unaffected either way.
     """
+    if extra is None:
+        extra = DOC2QUERY_EXTRA
+
     dense = await retrieve_top_k(query_embedding, org_id, k=k, visibility=visibility)
     if extra <= 0:
         return dense

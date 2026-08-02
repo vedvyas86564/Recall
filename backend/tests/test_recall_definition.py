@@ -107,3 +107,25 @@ def test_unanswerable_questions_are_excluded():
 def test_no_scorable_questions_returns_none_not_zero():
     rows = [QuestionResult(q="u", answerable=False, expect_sources=[])]
     assert recall_at_k(rows, 10) is None
+
+
+# --- one setting, one source of truth ----------------------------------------
+
+def test_augmentation_default_comes_from_the_module_constant():
+    """
+    `extra` must default to DOC2QUERY_EXTRA, not to a literal.
+
+    A literal here meant evals/run.py (which omits the argument) measured a
+    different configuration than main.py (which passed it): the harness would
+    have scored doc2query on while the API served it off. Nothing fails; the
+    numbers just stop describing the shipped system.
+    """
+    import inspect
+
+    from services import retrieval
+
+    sig = inspect.signature(retrieval.retrieve_augmented)
+    assert sig.parameters["extra"].default is None, (
+        "extra must default to None so the module constant decides, "
+        "otherwise callers that omit it diverge from the ones that don't"
+    )
