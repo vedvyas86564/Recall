@@ -16,7 +16,7 @@ the bar it declines and shows you the closest thing it found instead.
 
 ## Read this before you start, or you'll think it's broken
 
-This demo is indexed against **one specific corpus**: 100 discussion threads
+This demo is indexed against **one specific corpus**: 392 discussion threads
 from [astral-sh/uv](https://github.com/astral-sh/uv), the Python package
 manager. About 2,800 searchable chunks.
 
@@ -86,17 +86,47 @@ yourself whether it missed something.
 
 ---
 
-## One known bug, if you want to find it
+## Two known bugs, if you want to find them
+
+**It refuses something it could answer.**
 
 > *"How much faster did the Airflow production image get after switching to uv?"*
 
 Scores **0.436** — just under the 0.44 threshold — and refuses, even though the
 answer is genuinely in the corpus. A maintainer states the numbers in a reply.
 
-It's the single wrong refusal out of 39 evaluation questions (3%). The cause is
-structural: a very specific question is narrower than the thread's overall
-topic, so it scores lower than a vague question about the same thread would. A
-reranking step is the fix.
+It's the single wrong refusal across 54 answerable questions (1.9%). The cause is
+structural: a very specific question is narrower than the thread's overall topic,
+so it scores lower than a vague question about the same thread would. A reranking
+step is the fix.
+
+**It struggles when you ask in your own words — this is the big one.**
+
+Try these two. They have the same answer, in the same thread:
+
+> *"How do you bump a project's version with uv?"* → answers, top source, 0.671
+>
+> *"Where do I change the release number when I'm about to publish?"* → **refuses**, 0.389
+
+Or these:
+
+> *"What makes uv backtrack through many versions of the wrong package?"* → top source
+>
+> *"Resolving takes ages and it looks like it's trying hundreds of things."* → doesn't find it at all
+
+Embedding search matches how a question is *worded*. The threads say "bump",
+"backtrack", "max-age"; you say "release number", "takes ages", "straight away".
+The person who most needs the answer is exactly the person who doesn't know the
+vocabulary yet — which is awkward, given that's who this is built for.
+
+We measured it by writing ten questions twice, once in each style, against the
+same expected source. Eight of the ten got worse; none got better. Rank-one
+accuracy went from 71.7% to 9.1%.
+
+It only showed up because we went looking. Every question in the original
+evaluation set had been written while reading its source thread, so all of them
+borrowed that thread's words and all of them passed. Hybrid retrieval — keyword
+matching alongside the semantic search — is the fix, and it's next.
 
 ---
 
@@ -137,12 +167,14 @@ all ten would imply evidence that wasn't used.
 
 ## Where the numbers come from
 
-39 evaluation questions written by reading the corpus, six of them deliberately
+73 evaluation questions written by reading the corpus, nine of them deliberately
 unanswerable:
 
-| | |
-|---|---|
-| Correct source in top 10 | 100% |
-| Correct source ranked first | 87.9% |
-| Correct refusals | 100% |
-| Wrong refusals | 3% |
+Split by how the question is worded, because the difference is large:
+
+| | asked in the project's words | asked in your own words |
+|---|---|---|
+| Correct source in top 10 | 100% | 81.8% |
+| Correct source ranked first | 71.7% | 9.1% |
+| Correct refusals | 100% | 100% |
+| Wrong refusals | 1.9% | 9.1% |

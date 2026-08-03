@@ -59,18 +59,21 @@ explaining away.
 
 ## Beat 2 · It answers, and shows its work — 75 seconds
 
-> "This is indexed against the uv repository — a hundred real engineering
-> threads. I'll ask it something a new contributor would actually ask."
+> "This is indexed against the uv repository — about four hundred real
+> engineering threads. I'll ask it something a new contributor would actually
+> ask."
 
 `[Type: Why doesn't VSCode pick up the .venv interpreter automatically?]`
 `[Hit Enter. Takes 5–10 seconds.]`
 
 `[While it loads:]`
 
-> "It's embedding the question, searching about three thousand chunks, and
+> "It's embedding the question, searching about four thousand chunks, and
 > pulling the ones that clear a relevance bar."
 
-`[Answer appears. Five decisions. Point at the first one.]`
+`[Answer appears — five or six decisions; the count comes from a model call and
+varies slightly between runs, so don't say a number out loud. Point at the first
+one.]`
 
 > "That came out of a hundred-and-seven-message thread. Nobody is reading that
 > thread. And look at the structure — it didn't just summarize, it separated out
@@ -136,34 +139,58 @@ speaking. Let them read it.]`
 
 > "That's a claim, so we measure it rather than asserting it.
 >
-> We wrote thirty-nine evaluation questions by reading the corpus — including
-> six that are deliberately unanswerable. Every retrieval change runs against
+> We wrote seventy-three evaluation questions by reading the corpus — including
+> nine that are deliberately unanswerable. Every retrieval change runs against
 > them."
 
 `[Optional: have these numbers on a card or a slide. Don't make them squint.]`
 
-| | |
-|---|---|
-| Recall@10 | **100%** |
-| Recall@1 | 87.9% |
-| Correct refusals | **100%** |
-| Wrong refusals | 3% |
+| | in the project's words | in your own words |
+|---|---|---|
+| Correct source in top 10 | **100%** | 81.8% |
+| Correct source ranked first | 71.7% | 9.1% |
+| Correct refusals | **100%** | **100%** |
+| Wrong refusals | 1.9% | 9.1% |
 
-> "Recall@10 is a hundred percent — for every answerable question, the right
-> source is in the top ten. Correct refusals, a hundred percent. Wrong refusals,
-> three percent."
+> "Correct refusals, a hundred percent, in both columns — that's the number I
+> care most about, and it doesn't move.
+>
+> Now look at the two columns, because that's the interesting part."
 
 **Then the honest part. Do not skip this — it does more for you than the numbers:**
 
-> "And the harness has already earned its place. Our first relevance threshold
-> was wrong. It refused twenty-seven percent of questions it could have
-> answered. Retrieval was perfect the whole time — the threshold was throwing
-> good results away. We only found that because the eval caught it. We wouldn't
-> have noticed by clicking around."
+> "Ask a question using the project's own vocabulary and the right source is in
+> the top ten a hundred percent of the time. Ask the same question in plain
+> language and that drops to eighty-two — and rank-one accuracy falls off a
+> cliff, seventy-two percent to nine.
+>
+> We found that because we got suspicious of our own eval. Every question in it
+> had been written while reading the thread it came from — so every question
+> borrowed that thread's words, and of course it found the thread. Recall@10 sat
+> at a hundred percent for weeks and we thought that was a result about the
+> system. It was a result about us.
+>
+> So we wrote ten questions twice. Once as somebody who has read the thread,
+> once as somebody with the problem and none of the words. Eight of the ten got
+> worse. None got better.
+>
+> Here's the one that stings. Ask how to bump a project's version and it nails
+> it. Ask 'where do I change the release number before I publish' — same answer,
+> same thread — and it scores below our threshold and *refuses*. Our refusal
+> behaviour is the thing I just told you is our differentiator, and it misfires
+> on exactly the person we built this for."
 
-**Why say this:** every technical founder claims rigor. Naming a specific
-mistake your own tooling caught is the only version of that claim that's
-falsifiable, and investors know it.
+`[Let that land before continuing.]`
+
+> "That's the real onboarding problem, stated precisely. The fix is hybrid
+> retrieval — keyword matching alongside the semantic search — and it's the next
+> thing we build. I'd rather show you the gap and the plan than one blended
+> number that hides both."
+
+**Why say this:** every technical founder claims rigor. Reporting that your
+numbers went *down* because you made your own test harder is the only version of
+that claim nobody can fake. It also sets up hybrid retrieval as the next thing
+you build, with evidence rather than a hunch.
 
 ---
 
@@ -205,9 +232,9 @@ falsifiable, and investors know it.
 > *Know this answer cold. Somebody will ask it.*
 
 **"What's the corpus size?"**
-> "A hundred threads, about three thousand chunks, on a free-tier Postgres. It's
-> a demo scale, not a scaling claim — the architecture is pgvector, which goes a
-> lot further than this."
+> "Just under four hundred threads, about four thousand chunks, on a free-tier
+> Postgres. It's a demo scale, not a scaling claim — the architecture is
+> pgvector, which goes a lot further than this."
 
 **"Can I try it?"**
 > "Please." `[Hand over the keyboard.]`
@@ -264,9 +291,17 @@ it, name it as the three percent and move on.
   about that is what makes "verify it yourself" land.
 - **Don't say Slack ingestion is done.** The parser exists and is tested; the
   workspace connection is not built.
-- **Don't quote citation precision.** It's genuinely unmeasured — the eval pass
-  we ran skips generation. Quote Recall@10 and refusal accuracy, which are real.
+- **Citation precision is 67.4%, and quote it as a floor.** It measures
+  agreement with our golden set, and a citation can genuinely support a claim
+  without being one we anticipated. It fell from 73% when we added the
+  newcomer-phrased questions — if you cite the wrong thread you also cite it
+  wrongly, so that drop is the same problem counted twice, not a second one.
 - **Don't say "AI-powered."** Everything is. Say what it does.
-- **Don't oversell the corpus size.** A hundred threads is a demo. If someone
+- **Don't oversell the corpus size.** Four hundred threads is a demo. If someone
   pushes on scale, talk about pgvector and batched embedding, not about volume
   you don't have.
+- **If asked whether growing the corpus hurt quality: no, and don't confuse it
+  with the eval getting harder.** On the question set that existed before the
+  corpus grew, Recall@1 went *up* — 87.9% to 90.9%. The lower numbers on this
+  page come from adding harder questions afterwards, not from the bigger corpus.
+  Two separate changes; keep them separate when you explain them.

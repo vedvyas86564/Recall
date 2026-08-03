@@ -27,9 +27,32 @@ class QuestionResult:
     error: str | None = None
 
 
+def retrieved_refs(chunks) -> list[str]:
+    """
+    Ordered source refs for a retrieval result: one per chunk, duplicates kept.
+
+    Duplicates are deliberate and load-bearing. `k` is a budget of *chunks* --
+    exactly k of them reach the model -- so the position that matters is the
+    chunk position. Ten chunks routinely come from four or five threads, and
+    collapsing them first would credit a thread sitting at chunk 11 as though it
+    were inside the top ten.
+
+    That is not hypothetical. scripts/sweep_hybrid.py deduplicated here and
+    reported an augmentation change as "strictly dominant" on Recall@10 while
+    the pipeline measured no change at all (DECISIONS.md D24). Both called the
+    result Recall@10. This function exists so there is one answer to what that
+    means, and both callers use it.
+    """
+    from services.citations import source_ref
+
+    return [r for r in (source_ref(c) for c in chunks) if r]
+
+
 def recall_at_k(results: list[QuestionResult], k: int) -> float | None:
     """
     Fraction of answerable questions where an expected source appears in the top k.
+
+    `k` counts chunks, not distinct threads -- see retrieved_refs above.
 
     Only answerable questions count -- an unanswerable one has no correct source
     to find, so including them would inflate the denominator with questions that

@@ -50,9 +50,16 @@ function App() {
   // what is actually indexed instead of a hardcoded figure.
   const [corpusStats, setCorpusStats] = useState({})
 
+  // Ramp-up paths (spec section 3). Kept separate from the chat state: a reading
+  // list is not an answer and does not belong in the thread history.
+  const [rampTopic, setRampTopic] = useState('')
+  const [rampResult, setRampResult] = useState(null)
+  const [rampLoading, setRampLoading] = useState(false)
+  const [rampError, setRampError] = useState(null)
+
   const primaryNav = [
     { id: 'menu-threads', label: 'Threads', icon: threadsIcon },
-    { id: 'menu-kb', label: 'Knowledge Base', icon: knowledgeBaseIcon },
+    { id: 'menu-rampup', label: 'Ramp-up', icon: knowledgeBaseIcon },
     { id: 'menu-projects', label: 'Projects', icon: projectsIcon },
     { id: 'menu-settings', label: 'Source Management', icon: settingsIcon },
   ]
@@ -125,9 +132,43 @@ function App() {
   const handlePrimaryNav = (itemId) => {
     setActiveButton(itemId)
     if (itemId === 'menu-threads') setPage('home')
-    if (itemId === 'menu-kb') setPage('placeholder')
+    if (itemId === 'menu-rampup') setPage('rampup')
     if (itemId === 'menu-settings') setPage('service')
     if (itemId === 'menu-projects') setPage('projects')
+  }
+
+  const handleRampSubmit = async (event) => {
+    event.preventDefault()
+    const topic = rampTopic.trim()
+    if (!topic || rampLoading) return
+
+    setRampLoading(true)
+    setRampError(null)
+    setRampResult(null)
+
+    try {
+      const res = await fetch(`${BACKEND_URL}/rampup`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': API_KEY,
+          'x-org-id': ORG_ID,
+        },
+        body: JSON.stringify({ topic, limit: 8 }),
+      })
+      if (!res.ok) {
+        throw new Error(`Backend error ${res.status}: ${await res.text()}`)
+      }
+      setRampResult(await res.json())
+    } catch (err) {
+      console.error(err)
+      // Surfaced, not swallowed into an empty list. An empty reading list and a
+      // broken backend look identical on screen otherwise, and one of those is
+      // a lie about the corpus (spec rule 4).
+      setRampError(err.message)
+    } finally {
+      setRampLoading(false)
+    }
   }
 
   const handleSearchSubmit = async (event) => {
@@ -783,14 +824,116 @@ function App() {
                 </article>
               </section>
             </div>
+          ) : page === 'rampup' ? (
+            <div className="ramp-page">
+              <header className="ramp-header">
+                <h2 className="ramp-title">Get up to speed</h2>
+                <p className="ramp-subtitle">
+                  Give it a topic or paste a ticket. You get the threads to read, in the
+                  order that makes them make sense — not the order they matched in.
+                </p>
+              </header>
+
+              <form className="ramp-form" onSubmit={handleRampSubmit}>
+                <input
+                  className="ramp-input"
+                  onChange={(event) => setRampTopic(event.target.value)}
+                  placeholder="dependency resolution — or #3957, or a GitHub issue link"
+                  value={rampTopic}
+                />
+                <button className="ramp-submit" disabled={rampLoading} type="submit">
+                  {rampLoading ? 'Building…' : 'Build path'}
+                </button>
+              </form>
+
+              {rampError && (
+                <div className="ramp-error">
+                  <strong>Request failed.</strong> {rampError}
+                </div>
+              )}
+
+              {/* Abstention. Spec 1.2 applies here too: a topic the corpus cannot
+                  support gets a refusal with the score behind it, never a
+                  confident-looking curriculum assembled from weak matches. */}
+              {rampResult?.abstained && (
+                <div className="ramp-abstain">
+                  <p className="ramp-abstain-title">No reading path for this.</p>
+                  <p className="ramp-abstain-body">{rampResult.reason}</p>
+                  <p className="ramp-abstain-score">
+                    Best match scored {rampResult.top_score?.toFixed(3) ?? '—'} against a
+                    threshold of {rampResult.threshold}.
+                  </p>
+                </div>
+              )}
+
+              {rampResult && !rampResult.abstained && (
+                <>
+                  <div className="ramp-meta">
+                    {rampResult.resolved_from && (
+                      <span className="ramp-pill">
+                        {rampResult.resolved_from} → “{rampResult.query_used}”
+                      </span>
+                    )}
+                    <span>{rampResult.path.length} threads</span>
+                    <span>searched {rampResult.retrieved_chunks} chunks</span>
+                    <span>top match {rampResult.top_score?.toFixed(3)}</span>
+                  </div>
+
+                  <ol className="ramp-list">
+                    {rampResult.path.map((item) => (
+                      <li className="ramp-item" key={item.issue}>
+                        <div className="ramp-step">{item.position}</div>
+                        <div className="ramp-body">
+                          {/* Dead links render as text, never as a broken anchor
+                              (spec rule 5). */}
+                          {item.url ? (
+                            <a
+                              className="ramp-item-title"
+                              href={item.url}
+                              rel="noreferrer noopener"
+                              target="_blank"
+                            >
+                              #{item.issue} · {item.title}
+                            </a>
+                          ) : (
+                            <span className="ramp-item-title ramp-item-dead">
+                              #{item.issue} · {item.title}
+                            </span>
+                          )}
+
+                          {/* The reason is derived from the score, not written by a
+                              model, so it cannot drift from the ordering it explains. */}
+                          <p className="ramp-reason">{item.reason}</p>
+
+                          {item.excerpt && <p className="ramp-excerpt">{item.excerpt}</p>}
+
+                          <div className="ramp-signals">
+                            <span title="How many other indexed threads reference this one">
+                              {item.referenced_by} referencing
+                            </span>
+                            <span title="Messages in the thread">{item.messages} messages</span>
+                            <span title="Similarity to your topic">
+                              relevance {item.relevance?.toFixed(3)}
+                            </span>
+                          </div>
+                        </div>
+                      </li>
+                    ))}
+                  </ol>
+                </>
+              )}
+
+              {!rampResult && !rampError && !rampLoading && (
+                <p className="ramp-hint">
+                  Ordering is by how foundational a thread is, not how well it matched.
+                  Every position states which signal put it there.
+                </p>
+              )}
+            </div>
           ) : (
             <div className="placeholder-page">
-              <h2>{activeButton === 'menu-kb' ? 'Knowledge Base' : 'Projects'}</h2>
-              <p>
-                {activeButton === 'menu-kb'
-                  ? 'This page is ready for your knowledge base design.'
-                  : 'This page is ready for your next design screen.'}
-              </p>
+              <h2>Projects</h2>
+              <p>This page is ready for your next design screen.</p>
             </div>
           )}
         </div>

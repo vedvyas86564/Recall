@@ -3,8 +3,8 @@
 Every question below has been run against the live index. The score in brackets
 is the measured top match, so nothing here is a guess about how it will behave.
 
-**Corpus:** 100 `astral-sh/uv` issue threads — 2,829 chunks, 100% public.
-**Threshold:** 0.44, calibrated against a 39-question golden set.
+**Corpus:** 392 `astral-sh/uv` issue threads — 4,149 chunks, 100% public.
+**Threshold:** 0.44, calibrated against the golden set (now 73 questions).
 
 ---
 
@@ -39,15 +39,31 @@ That is the enterprise objection, answered before it is raised.
 
 ### 3. Why they should believe it — 40 seconds
 
-> "We do not assert this, we measure it. 39 questions written by reading the
-> corpus, six of them deliberately unanswerable."
+> "We do not assert this, we measure it. 73 questions written by reading the
+> corpus, nine of them deliberately unanswerable."
 
-| metric | value |
-|---|---|
-| Recall@10 | **100%** |
-| Recall@1 | 87.9% |
-| Abstention accuracy | **100%** |
-| False abstention | 3.0% |
+Report this as **two numbers, not one** — the average of them describes nothing
+that actually happens.
+
+| | asked in the project's words | asked in your own words |
+|---|---|---|
+| | *(53 questions)* | *(11 questions)* |
+| Correct source in top 10 | **100%** | 81.8% |
+| Correct source ranked first | 71.7% | 9.1% |
+| Correct refusals | **100%** | **100%** |
+| Wrong refusals | 1.9% | 9.1% |
+
+Retrieval is not mediocre. It is excellent when the asker knows the vocabulary
+and poor when they don't, and those are different products to different people.
+
+The second column exists because we went looking for it. Every question in our
+original eval had been written while reading the thread it came from, so every
+one inherited that thread's words — and Recall@10 sat at 100% for three rounds
+of eval work without anyone noticing that was a fact about the questions.
+
+We then wrote ten questions twice: once as someone who has read the thread, once
+as someone with the problem and none of the words. Same expected source both
+times. **Eight of the ten got worse. None got better.**
 
 Then the honest part, which buys more credibility than it costs:
 
@@ -101,13 +117,38 @@ well stumble into its shape.
 
 **Do not steer around it silently.** If it comes up:
 
-> "That is our known failure mode. The answer is in there, in a reply, and the
-> question is more specific than the thread's overall topic — so it scores lower
-> than a vaguer question about the same thread. We measure it at 3%, we know
-> which questions it affects, and it is what a reranker fixes next."
+> "That is one of our two known failure modes. The answer is in there, in a
+> reply, and the question is more specific than the thread's overall topic — so
+> it scores lower than a vaguer question about the same thread. We measure it at
+> 1.9%, we know which questions it affects, and it is what a reranker fixes
+> next."
 
-Naming a known limitation with a number attached reads as competence. Being
-caught surprised by it does not.
+## The other one, which is the real one
+
+Ask about bumping a version the way the project writes it and it answers from
+the right thread at rank one, scoring 0.671. Ask the same thing as
+
+> **"Where do I change the release number when I'm about to publish?"**
+
+and it scores **0.389 and refuses.** Same corpus, same answer sitting there,
+different words.
+
+That is the failure mode to volunteer, because it is the product's own thesis
+turned on itself:
+
+> "We built this for the person who joined last week. That person asks in their
+> own words — they don't know your team calls it 'bumping the version' yet.
+> We wrote ten questions twice, once in the project's vocabulary and once in
+> plain language, and eight of the ten got worse. Rank-one accuracy went from
+> seventy-two percent to nine.
+>
+> Nobody would have found that by clicking around, and our own eval was hiding
+> it, because we'd written every question while reading the answer. The fix is
+> hybrid retrieval — keyword matching alongside the embedding — and it's next.
+> We'd rather show you the gap and the plan than an average that conceals both."
+
+Naming a known limitation with a number attached reads as competence. Naming the
+one that undercuts your own pitch, that you went looking for, reads as better.
 
 ---
 
@@ -130,8 +171,12 @@ caught surprised by it does not.
   about that is what makes the click-to-verify move land.
 - Do not promise Slack ingestion is done. The parser exists and is tested; the
   workspace connection is not built.
-- Do not quote citation precision. It is still unmeasured — the retrieval-only
-  eval skips generation. Quote Recall@10 and abstention accuracy, which are real.
+- Citation precision is 67.4% across the whole set, dragged down by the
+  newcomer-phrased questions that retrieve the wrong thread in the first place.
+  Say it is measured against a golden set — a citation can support a claim
+  without being one we listed, so treat it as a floor. If it comes up in a
+  comparison, note that it only became run-to-run stable once extraction was
+  pinned to temperature 0.
 
 ---
 

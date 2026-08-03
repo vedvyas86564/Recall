@@ -93,3 +93,109 @@ operator alignment was one such case — Nova embeddings are unit-norm, so the t
 operators are monotonically related and rank identically. That argument is
 recorded in the commit rather than backed by a run, because at the time there
 was no corpus to run against.
+
+## Sweeping retrieval settings
+
+`backend/scripts/sweep_hybrid.py` embeds every answerable question once and
+replays retrieval across configurations, reporting Recall@1/@10 overall and split
+by phrasing. Use it instead of hand-checking a few examples — the relevance
+threshold was first set by intuition and was wrong by 27 points (D12), and the
+hybrid-retrieval weights looked promising on five hand-picked cases and measured
+worse than dense alone across the whole set (D23).
+
+**Know when to stop.** The newcomer slice is 11 questions, so one question moves
+it by 9 points. Sweeping until a configuration looks good is fitting the harness
+rather than the problem — the same failure as writing a golden set from
+retrieval's own output, approached from the other side.
+
+**The sweep and this runner do not measure Recall@k the same way.** `run.py`
+scores `retrieved_refs[:k]` by **chunk position**; `sweep_hybrid.py` ranks
+**deduplicated threads**. Ten chunks routinely come from four or five threads, so
+a result at chunk position 11 is inside the sweep's top ten and outside this
+one's. At D24 that discrepancy turned a "strictly dominant" sweep result into no
+measurable change in the full pipeline.
+
+Before quoting a sweep number as a pipeline number, confirm the definitions
+agree — or run `run.py`, which is the one that scores the shipped path.
+
+## Refreshing the set after the corpus grows
+
+`expect_sources` enumerates the valid sources *in the corpus as it was when the
+question was written*. Grow the corpus and the set silently starts scoring
+correct-but-unlisted answers as misses — Recall@1 and citation precision fall
+while nothing has actually got worse. This happened at D19: the corpus went from
+100 threads to 392, Recall@1 read 78.8% and citation precision 77.7%, and both
+were partly measuring the golden set's age rather than the system.
+
+**The one thing that destroys the harness:** pasting the observed citations into
+`expect_sources`. The numbers return to ~100% and measure nothing, because the
+answer key has been copied from the thing under test. There is no way to detect
+this later from the numbers alone.
+
+The method that keeps it honest:
+
+1. Collect candidates — threads retrieved or cited but not listed. Do not treat
+   this list as the answer, only as the review queue.
+2. **Read each candidate** against the question, and apply a fixed bar. The bar
+   used at D19: *the thread must contain material that directly answers the
+   question as asked, not merely material on the same topic.*
+3. Add only what clears the bar. Write down why each one did.
+4. Write down the rejections and why, so the review can be argued with rather
+   than taken on trust. At D19, 13 of 27 candidates were accepted — a review
+   that accepts nearly everything is a rubber stamp, and one that accepts almost
+   nothing is probably applying a bar the product does not actually hold.
+
+Two rejections from D19 are worth keeping as calibration:
+
+- `#9008` was cited for a question about a private GitLab index. It is a private
+  *PyPI* bug report whose body is interpreter-discovery logs. On-topic-sounding,
+  genuinely wrong, and exactly what citation precision exists to catch.
+- `#1419` was cited for "how do I upgrade dependencies declared in
+  pyproject.toml". It answers with `uv lock --upgrade`, which upgrades the lock
+  and not the declarations. Close enough to look right, wrong enough to mislead
+  — the distinction is the whole point of the question.
+
+Refreshing sources does **not** refresh coverage. The questions still probe the
+subject matter of the original corpus; new material is under-sampled until new
+questions are written for it.
+
+## Writing questions for newly indexed material
+
+Same discipline, one step earlier: read the thread, decide what a new contributor
+would want from it, and set `expect_sources` to the thread you read the answer
+in. Do not run retrieval first. Retrieval is the thing under test, and a question
+written from its output is a question it is guaranteed to pass.
+
+**The bias to watch.** Writing a question while reading a thread pulls the
+thread's own vocabulary into it. Ask "why can `uv python find` locate a Python on
+NixOS that `uv venv` refuses to use" and the distinctive tokens — NixOS, the two
+command names — do most of the retrieval work. A new hire would more likely ask
+"why won't uv use the Python I already have installed", which is a much harder
+retrieval problem and the one that actually matters.
+
+So the set skews optimistic by construction, and the fix is to deliberately
+include questions phrased the way someone who has *not* read the thread would
+phrase them. When one of those misses, that is the honest signal — an easy hit on
+a question full of the thread's own jargon proves much less.
+
+### Matched pairs
+
+A lone newcomer-phrased question conflates two things: whether the thread is
+retrievable at all, and whether it is retrievable *from those words*. Pairing
+separates them. Write two questions against the same `expect_sources` — one as
+someone who has read the thread would ask, one as someone with the problem and
+none of the vocabulary would — and the only variable left is the wording.
+
+Questions tagged `newcomer_phrasing: true` are the second half of such a pair.
+
+**Two ways to get this wrong, both tempting:**
+
+- *Screening candidates by word overlap with the thread.* Tried and discarded:
+  measured against a full thread, almost every ordinary word ("install",
+  "package", "version") appears somewhere, so a genuinely differently-phrased
+  question scores as high-overlap and a near-paraphrase can score low. The metric
+  ranked 9 of 10 real probes as unusable. Overlap against a long document does
+  not predict retrieval.
+- *Keeping only the questions that fail.* This manufactures the failure rate the
+  set exists to measure. Write the pair, add it, report whatever it scores. The
+  ones that pass are the control — without them the failures mean nothing.

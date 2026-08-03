@@ -1,7 +1,9 @@
 backend/venv
-backend/__pycache__
-backend/services/__pycache__
-backend/tests/__pycache__
+
+# One rule rather than a list of directories -- the per-directory version missed
+# backend/scripts/ the moment that package was added.
+__pycache__/
+*.py[cod]
 backend/local_index.json
 backend/.env
 backend/.env.local

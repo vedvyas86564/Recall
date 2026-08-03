@@ -6,19 +6,30 @@ bugs found in it were both silent truncations that returned plausible data --
 exactly what a live smoke test fails to catch.
 """
 
+import httpx
 import pytest
 
 from services.chunking import chunk_document
 from services.citations import github_issue_url, source_ref
-from services.github_threads import _build_thread, _clean, _is_bot, _ts, fetch_issue_threads
+from services.github_threads import (
+    _build_thread,
+    _clean,
+    _is_bot,
+    _ts,
+    fetch_issue_threads,
+    fetch_issues_by_number,
+)
 
 
 class FakeClient:
     """Serves canned issue/comment pages and records what was requested."""
 
-    def __init__(self, search_pages=None, comments=None):
+    def __init__(self, search_pages=None, comments=None, issues=None):
         self.search_pages = search_pages or {}
         self.comments = comments or {}
+        # Numbers fetchable one at a time; anything absent 404s, which is what
+        # GitHub does for a number harvested out of prose.
+        self.issues = issues or {}
         self.calls = []
 
     def get(self, path, **params):
@@ -30,6 +41,15 @@ class FakeClient:
             page = params.get("page", 1)
             pages = self.comments.get(number, [])
             return pages[page - 1] if page <= len(pages) else []
+        if "/issues/" in path:
+            number = int(path.rsplit("/", 1)[1])
+            if number in self.issues:
+                return self.issues[number]
+            raise httpx.HTTPStatusError(
+                "Not Found",
+                request=httpx.Request("GET", f"https://api.github.com{path}"),
+                response=httpx.Response(404),
+            )
         return []
 
 
@@ -202,3 +222,71 @@ def test_source_ref_identifies_the_thread():
     doc = _build_thread(client, "o/r", issue(7))
     chunk = chunk_document(doc)[0]
     assert source_ref(chunk) == "github:o/r:7"
+
+
+# --- Targeted fetch by number -----------------------------------------------
+#
+# The densification path. Its defining property is that it does NOT filter on
+# comment count: a short issue that many threads cite is foundational reading,
+# and the search path can never return it.
+
+def test_fetches_the_requested_numbers():
+    client = FakeClient(
+        issues={7: issue(7), 9: issue(9)},
+        comments={7: [[comment(1)]], 9: [[comment(2)]]},
+    )
+    docs = fetch_issues_by_number("o/r", ["7", "9"], client=client)
+    assert sorted(d["issue_number"] for d in docs) == [7, 9]
+
+
+def test_nonexistent_issues_are_skipped_not_raised():
+    """
+    Candidates come from prose, so some are not issue references at all. A 404 is
+    the expected outcome for those -- raising would abort a 500-issue run because
+    one number was a version string.
+    """
+    client = FakeClient(issues={7: issue(7)}, comments={7: [[comment(1)]]})
+    docs = fetch_issues_by_number("o/r", ["7", "999999"], client=client)
+    assert [d["issue_number"] for d in docs] == [7]
+
+
+def test_a_short_but_referenced_issue_is_kept():
+    """
+    Two messages is enough. This is the whole point of the path: the search
+    filter's min_comments=8 would have discarded this issue, which is why the
+    reference graph pointed at nothing.
+    """
+    client = FakeClient(issues={7: issue(7, comments=1)}, comments={7: [[comment(1)]]})
+    assert len(fetch_issues_by_number("o/r", ["7"], client=client)) == 1
+
+
+def test_single_message_issues_are_still_rejected():
+    client = FakeClient(issues={7: issue(7)}, comments={7: []})
+    assert fetch_issues_by_number("o/r", ["7"], client=client) == []
+
+
+def test_bot_authored_issues_are_skipped():
+    client = FakeClient(
+        issues={7: issue(7, user="dependabot[bot]")}, comments={7: [[comment(1)]]}
+    )
+    assert fetch_issues_by_number("o/r", ["7"], client=client) == []
+
+
+def test_non_404_errors_still_propagate():
+    """A 500 is a real failure and must not be silently counted as 'missing'."""
+
+    class Failing(FakeClient):
+        def get(self, path, **params):
+            raise httpx.HTTPStatusError(
+                "Server Error",
+                request=httpx.Request("GET", "https://api.github.com"),
+                response=httpx.Response(500),
+            )
+
+    with pytest.raises(httpx.HTTPStatusError):
+        fetch_issues_by_number("o/r", ["7"], client=Failing())
+
+
+def test_integer_numbers_are_accepted():
+    client = FakeClient(issues={7: issue(7)}, comments={7: [[comment(1)]]})
+    assert len(fetch_issues_by_number("o/r", [7], client=client)) == 1

@@ -1,5 +1,6 @@
 import os
 import json
+import re
 import uuid
 from contextlib import asynccontextmanager
 
@@ -21,8 +22,10 @@ from services.answer import attach_citations
 from services.bedrock_embed import embed_one
 from services.nova_extract import extract_decisions
 from services.db import get_pool, close_pool
-from services.retrieval import retrieve_top_k
+from services.retrieval import retrieve_augmented, retrieve_top_k
 from services.ingest import ingest_github_threads, ingest_slack_export
+from services.rampup import build_reading_list
+from services.references import reference_counts
 
 # ---------------------------------------------------------------------------
 # Config
@@ -137,6 +140,12 @@ class GitHubIngestRequest(BaseModel):
     state: str = "all"
 
 
+class RampUpRequest(BaseModel):
+    # Free text, an issue number, or a GitHub issue/PR URL (spec section 3).
+    topic: str
+    limit: int | None = 8
+
+
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
@@ -174,7 +183,7 @@ async def query(req: QueryRequest, request: Request):
     top_k = req.top_k or 8
 
     qvec = embed_one(req.question, purpose="TEXT_RETRIEVAL")
-    top = await retrieve_top_k(qvec, org_id, k=top_k)
+    top = await retrieve_augmented(qvec, org_id, k=top_k)
 
     # Decide on retrieval quality before calling the generator. Asking the model
     # whether it can answer invites it to say yes and confabulate, which is the
@@ -212,6 +221,130 @@ async def query(req: QueryRequest, request: Request):
         # gap is a signal that retrieval is returning noise.
         "retrieved_count": len(top),
     }
+
+
+@app.post("/rampup")
+async def rampup(req: RampUpRequest, request: Request):
+    """
+    Ordered reading list for a topic — spec section 3.
+
+    Relevance decides what is included; the ordering signals in services/rampup
+    decide the sequence. A relevance-ranked pile is explicitly not a ramp-up
+    path, so the two are kept separate.
+    """
+    org_id = request.state.org_id
+    topic = req.topic.strip()
+    limit = max(1, min(req.limit or 8, 20))
+
+    # An issue number or URL is a topic too: resolve it to that thread's title so
+    # the search is about the subject rather than about the digits.
+    resolved = await resolve_issue_reference(topic, org_id)
+    query_text = resolved["query"] if resolved else topic
+
+    qvec = embed_one(query_text, purpose="TEXT_RETRIEVAL")
+    # Much wider than /query. Chunks collapse per thread, and a long thread
+    # contributes many chunks -- resolving #3957 retrieved 20 chunks that all
+    # belonged to #3957, yielding a one-item "path". Over-retrieving is the cost
+    # of getting enough distinct threads to actually sequence.
+    chunks = await retrieve_top_k(qvec, org_id, k=min(limit * 12, 120))
+
+    # An empty or hopeless retrieval should not produce a confident-looking
+    # curriculum. Same reasoning as abstention on /query (spec 1.2).
+    abstain, top_score = should_abstain(chunks)
+    if abstain:
+        await log_abstention(
+            org_id, f"[rampup] {topic}", top_score, RELEVANCE_THRESHOLD, len(chunks), []
+        )
+        return {
+            "abstained": True,
+            "reason": "Nothing indexed is close enough to this topic to build a reading path.",
+            "topic": topic,
+            "resolved_from": resolved["source"] if resolved else None,
+            "path": [],
+            "top_score": top_score,
+            "threshold": RELEVANCE_THRESHOLD,
+        }
+
+    counts = await reference_counts(org_id)
+    listing = build_reading_list(chunks, counts)
+
+    # Inclusion needs its own floor, separate from ordering.
+    #
+    # Widening k to get enough distinct threads to sequence also drags in
+    # weakly-related ones, and foundational ordering then promotes them above
+    # better matches -- a path for "uv build backend" came back led by
+    # "Documentation feedback" and "Conda environments". Ordering was correct;
+    # inclusion was too loose.
+    #
+    # Reusing the abstention threshold is the principled bar: a thread not good
+    # enough to answer from is not good enough to assign as reading.
+    listing = [item for item in listing if item["relevance"] >= RELEVANCE_THRESHOLD]
+
+    # Someone who pasted a ticket already has that ticket. The useful answer is
+    # what to read *around* it, so the source thread is dropped from its own
+    # reading path rather than occupying position one.
+    if resolved:
+        source_issue = resolved["source"].lstrip("#")
+        listing = [item for item in listing if item["id"] != source_issue]
+
+    path = listing[:limit]
+
+    return {
+        "abstained": False,
+        "topic": topic,
+        "resolved_from": resolved["source"] if resolved else None,
+        "query_used": query_text,
+        "top_score": top_score,
+        "threshold": RELEVANCE_THRESHOLD,
+        "retrieved_chunks": len(chunks),
+        "path": [
+            {
+                "position": i + 1,
+                "issue": item["id"],
+                "title": item["title"],
+                "url": item["url"],
+                "reason": item["reason"],
+                "messages": item["message_count"],
+                "referenced_by": item["referenced_by"],
+                "relevance": round(item["relevance"], 4),
+                "foundational_score": item["foundational_score"],
+                "signals": item["signals"],
+                "excerpt": item["excerpt"],
+            }
+            for i, item in enumerate(path)
+        ],
+    }
+
+
+async def resolve_issue_reference(topic: str, org_id: str) -> dict | None:
+    """
+    Turn an issue number or URL into that thread's title, for use as the query.
+
+    Embedding the literal string "#3957" retrieves almost nothing — the digits
+    carry no semantic weight. Embedding "Add a uv build backend" retrieves the
+    surrounding conversation, which is what someone pasting a ticket actually
+    wants. Returns None for ordinary free text.
+    """
+    match = re.search(r"(?:issues|pull)/(\d{2,6})", topic) or re.fullmatch(
+        r"\s*#?(\d{2,6})\s*", topic
+    )
+    if not match:
+        return None
+
+    number = match.group(1)
+    pool = await get_pool()
+    title = await pool.fetchval(
+        """
+        SELECT title FROM documents
+        WHERE org_id = $1::uuid AND metadata->>'issue_number' = $2
+        LIMIT 1
+        """,
+        org_id,
+        number,
+    )
+    if not title:
+        return None
+    return {"source": f"#{number}", "query": title}
 
 
 @app.get("/documents")
